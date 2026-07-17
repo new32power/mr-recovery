@@ -115,10 +115,9 @@ export default {
     if (pathname === "/api/master/ping" && method === "POST") {
       return json({ ok: true });
     }
+    // sse-token: return 503 so frontend retries cleanly — no 401 spam
     if (pathname === "/api/master/sse-token" && method === "POST") {
-      // Sign a random opaque token — SSE on Render will fall back gracefully
-      const token = crypto.randomUUID() + "." + Date.now();
-      return json({ token });
+      return json({ error: "SSE not available — use WebSocket" }, 503);
     }
 
     // ── Only handle /api/* beyond here ─────────────────────────────────────
@@ -208,16 +207,23 @@ export default {
 
       // ── GET /api/master/all-devices ───────────────────────────────────
       if (pathname === "/api/master/all-devices") {
-        const hasFcm = url.searchParams.get("hasFcm") === "1";
-        const appId  = url.searchParams.get("appId") || null;
+        const hasFcm  = url.searchParams.get("hasFcm") === "1";
+        const appId   = url.searchParams.get("appId") || null;
+        const search  = url.searchParams.get("search") || null;
+        const limitN  = Math.min(Number(url.searchParams.get("limit") || "500"), 500);
         let rows: unknown[];
-        if (appId) {
-          rows = await db`SELECT * FROM devices WHERE app_id = ${appId} ORDER BY installed_at DESC`;
+        if (search) {
+          const s = `%${search}%`;
+          rows = await db`SELECT * FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s} ORDER BY installed_at DESC LIMIT ${limitN}`;
+        } else if (appId) {
+          rows = await db`SELECT * FROM devices WHERE app_id = ${appId} ORDER BY installed_at DESC LIMIT ${limitN}`;
         } else {
-          rows = await db`SELECT * FROM devices ORDER BY installed_at DESC`;
+          rows = await db`SELECT * FROM devices ORDER BY installed_at DESC LIMIT ${limitN}`;
         }
-        const mapped = (rows as any[]).map(mapDevice);
-        return json(hasFcm ? mapped.filter((d: any) => d.fcmToken) : mapped);
+        const mapped = (rows as any[]).map(r => ({ ...mapDevice(r), hasFcm: !!r.fcm_token }));
+        const result = hasFcm ? mapped.filter((d: any) => d.hasFcm) : mapped;
+        // Frontend expects { data: [...] } format
+        return json({ data: result });
       }
 
       // ── GET /api/apps (list all) ──────────────────────────────────────
@@ -256,22 +262,56 @@ export default {
         return json({ enabled: (rows[0] as any).enabled, hasPin: (rows[0] as any).has_pin });
       }
 
+      // ── GET /api/messages/count ───────────────────────────────────────
+      if (pathname === "/api/messages/count" && method === "GET") {
+        const appId = url.searchParams.get("appId");
+        let rows: unknown[];
+        if (appId) {
+          rows = await db`SELECT COUNT(*)::int AS count FROM messages WHERE app_id = ${appId}`;
+        } else {
+          rows = await db`SELECT COUNT(*)::int AS count FROM messages`;
+        }
+        return json({ count: (rows as any[])[0]?.count ?? 0 });
+      }
+
       // ── GET /api/messages ─────────────────────────────────────────────
       if (pathname === "/api/messages" && method === "GET") {
         const appId    = url.searchParams.get("appId");
         const userId   = url.searchParams.get("userId");
         const deviceId = url.searchParams.get("deviceId");
+        const search   = url.searchParams.get("search");
+        const cursor   = url.searchParams.get("cursor");
+        const limitN   = Math.min(Number(url.searchParams.get("limit") || "30"), 500);
+        const isSearch = !!search;
+
         let rows: unknown[];
-        if (appId) {
-          rows = await db`SELECT * FROM messages WHERE app_id = ${appId} ORDER BY received_at DESC LIMIT 500`;
-        } else if (userId) {
-          rows = await db`SELECT * FROM messages WHERE user_id = ${userId} ORDER BY received_at DESC LIMIT 500`;
-        } else if (deviceId) {
-          rows = await db`SELECT * FROM messages WHERE device_id = ${deviceId} ORDER BY received_at DESC LIMIT 500`;
+        if (isSearch) {
+          // Search mode — returns { data, hasMore, lastId }
+          const s = `%${search}%`;
+          const cursorCond = cursor ? db`AND id < ${Number(cursor)}` : db``;
+          if (appId) {
+            rows = await db`SELECT * FROM messages WHERE app_id = ${appId} AND (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ${cursorCond} ORDER BY id DESC LIMIT ${limitN + 1}`;
+          } else {
+            rows = await db`SELECT * FROM messages WHERE (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ${cursorCond} ORDER BY id DESC LIMIT ${limitN + 1}`;
+          }
+          const hasMore = rows.length > limitN;
+          const data = (rows as any[]).slice(0, limitN).map(mapMessage);
+          const lastId = data.length > 0 ? data[data.length - 1].id : null;
+          return json({ data, hasMore, lastId });
         } else {
-          rows = await db`SELECT * FROM messages ORDER BY received_at DESC LIMIT 500`;
+          // Browse mode — plain array with cursor pagination
+          const cursorCond = cursor ? db`AND id < ${Number(cursor)}` : db``;
+          if (appId) {
+            rows = await db`SELECT * FROM messages WHERE app_id = ${appId} ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+          } else if (userId) {
+            rows = await db`SELECT * FROM messages WHERE user_id = ${userId} ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+          } else if (deviceId) {
+            rows = await db`SELECT * FROM messages WHERE device_id = ${deviceId} ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+          } else {
+            rows = await db`SELECT * FROM messages ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+          }
+          return json((rows as any[]).map(mapMessage));
         }
-        return json((rows as any[]).map(mapMessage));
       }
 
       // ── GET /api/devices ──────────────────────────────────────────────
@@ -298,20 +338,32 @@ export default {
         return json(mapDevice(rows[0]));
       }
 
-      // ── GET /api/data (form data) ─────────────────────────────────────
+      // ── GET /api/data (form data) — { data, total, hasMore } ─────────
       if (pathname === "/api/data" && method === "GET") {
         const appId    = url.searchParams.get("appId") ?? "";
         const deviceId = url.searchParams.get("deviceId");
-        let rows: unknown[];
+        const limitN   = Math.min(Number(url.searchParams.get("limit") || "1000"), 2000);
+        const offset   = Number(url.searchParams.get("offset") || "0");
+
+        let rows: unknown[], countRows: unknown[];
         if (deviceId) {
-          rows = await db`SELECT * FROM form_data WHERE app_id = ${appId} AND device_id = ${deviceId} ORDER BY submitted_at DESC`;
+          rows = await db`SELECT * FROM form_data WHERE app_id = ${appId} AND device_id = ${deviceId} ORDER BY submitted_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+          countRows = await db`SELECT COUNT(*)::int AS c FROM form_data WHERE app_id = ${appId} AND device_id = ${deviceId}`;
+        } else if (appId) {
+          rows = await db`SELECT * FROM form_data WHERE app_id = ${appId} ORDER BY submitted_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+          countRows = await db`SELECT COUNT(*)::int AS c FROM form_data WHERE app_id = ${appId}`;
         } else {
-          rows = await db`SELECT * FROM form_data WHERE app_id = ${appId} ORDER BY submitted_at DESC`;
+          rows = await db`SELECT * FROM form_data ORDER BY submitted_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+          countRows = await db`SELECT COUNT(*)::int AS c FROM form_data`;
         }
-        return json((rows as any[]).map((r: any) => ({
+
+        const total = (countRows as any[])[0]?.c ?? 0;
+        const data = (rows as any[]).map((r: any) => ({
           id: r.id, appId: r.app_id, deviceId: r.device_id,
-          data: r.data, submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : new Date().toISOString(),
-        })));
+          data: r.data,
+          submittedAt: r.submitted_at ? new Date(r.submitted_at).toISOString() : new Date().toISOString(),
+        }));
+        return json({ data, total, hasMore: offset + data.length < total });
       }
 
       // ── GET /api/admin/sessions ───────────────────────────────────────
