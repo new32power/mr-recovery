@@ -2,6 +2,7 @@
 
 interface Env {
   ASSETS: Fetcher;
+  GOOGLE_CLIENT_ID?: string;
 }
 
 /** Render backend — all /api/* requests go here */
@@ -22,6 +23,15 @@ export default {
     // ── CORS preflight ────────────────────────────────────────────────────
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    // ── /api/auth/config — served directly from CF (not proxied to Render) ──
+    if (url.pathname === "/api/auth/config" && request.method === "GET") {
+      const clientId = env.GOOGLE_CLIENT_ID ?? "461863915234-r9tvbtn7kr2pm9hpebmj301nrv6bg03h.apps.googleusercontent.com";
+      return new Response(
+        JSON.stringify({ googleClientId: clientId }),
+        { status: 200, headers: { "Content-Type": "application/json", ...CORS_HEADERS } },
+      );
     }
 
     // ── Proxy /api/* → Render backend ─────────────────────────────────────
