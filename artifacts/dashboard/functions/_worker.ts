@@ -34,6 +34,66 @@ export default {
       );
     }
 
+    // ── /api/notice — public notice ticker (stub if Render not ready) ──────
+    if (url.pathname === "/api/notice" && request.method === "GET") {
+      const resp = await fetch(BACKEND + "/api/notice").catch(() => null);
+      if (resp && resp.ok) {
+        const headers = new Headers(resp.headers);
+        for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
+        return new Response(resp.body, { status: 200, headers });
+      }
+      return new Response(JSON.stringify({ notices: [] }), {
+        status: 200, headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+      });
+    }
+
+    // ── /api/master/ping — session keepalive (always ok, logout prevented) ─
+    if (url.pathname === "/api/master/ping" && request.method === "POST") {
+      const resp = await fetch(BACKEND + "/api/master/ping", {
+        method: "POST", headers: request.headers,
+      }).catch(() => null);
+      if (resp && resp.status !== 404) {
+        const headers = new Headers(resp.headers);
+        for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
+        return new Response(resp.body, { status: resp.status, headers });
+      }
+      // Render not ready yet — return ok so panel stays logged in
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200, headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+      });
+    }
+
+    // ── /api/master/stats — fallback stub if Render not ready ────────────
+    if (url.pathname === "/api/master/stats" && request.method === "GET") {
+      const resp = await fetch(BACKEND + "/api/master/stats", { headers: request.headers }).catch(() => null);
+      if (resp && resp.status !== 404) {
+        const headers = new Headers(resp.headers);
+        for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
+        return new Response(resp.body, { status: resp.status, headers });
+      }
+      return new Response(JSON.stringify({
+        onlineCount: 0, totalDevices: 0, totalApps: 0,
+        activeApps: 0, appsToday: 0, totalMessages: 0,
+        messagesToday: 0, activeSessions: 0,
+      }), { status: 200, headers: { "Content-Type": "application/json", ...CORS_HEADERS } });
+    }
+
+    // ── /api/master/sse-token — fallback stub if Render not ready ────────
+    if (url.pathname === "/api/master/sse-token" && request.method === "POST") {
+      const resp = await fetch(BACKEND + "/api/master/sse-token", {
+        method: "POST", headers: request.headers, body: request.body,
+      }).catch(() => null);
+      if (resp && resp.status !== 404) {
+        const headers = new Headers(resp.headers);
+        for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
+        return new Response(resp.body, { status: resp.status, headers });
+      }
+      // Return 503 so frontend retries later when Render is ready
+      return new Response(JSON.stringify({ error: "SSE service starting up, retry soon" }), {
+        status: 503, headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+      });
+    }
+
     // ── WebSocket upgrade — proxy to Render ───────────────────────────────
     if (request.headers.get("Upgrade") === "websocket") {
       const wsUrl = BACKEND.replace("https://", "wss://") + url.pathname + url.search;
