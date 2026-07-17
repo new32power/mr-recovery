@@ -265,12 +265,9 @@ export default {
       // ── GET /api/messages/count ───────────────────────────────────────
       if (pathname === "/api/messages/count" && method === "GET") {
         const appId = url.searchParams.get("appId");
-        let rows: unknown[];
-        if (appId) {
-          rows = await db`SELECT COUNT(*)::int AS count FROM messages WHERE app_id = ${appId}`;
-        } else {
-          rows = await db`SELECT COUNT(*)::int AS count FROM messages`;
-        }
+        const rows = appId
+          ? await db`SELECT COUNT(*)::int AS count FROM messages WHERE app_id = ${appId}`
+          : await db`SELECT COUNT(*)::int AS count FROM messages`;
         return json({ count: (rows as any[])[0]?.count ?? 0 });
       }
 
@@ -281,34 +278,44 @@ export default {
         const deviceId = url.searchParams.get("deviceId");
         const search   = url.searchParams.get("search");
         const cursor   = url.searchParams.get("cursor");
+        const cursorId = cursor ? Number(cursor) : null;
         const limitN   = Math.min(Number(url.searchParams.get("limit") || "30"), 500);
-        const isSearch = !!search;
+        const fetch    = limitN + 1; // fetch one extra to detect hasMore
 
         let rows: unknown[];
-        if (isSearch) {
-          // Search mode — returns { data, hasMore, lastId }
+        if (search) {
+          // ── Search mode → returns { data, hasMore, lastId } ───────────
           const s = `%${search}%`;
-          const cursorCond = cursor ? db`AND id < ${Number(cursor)}` : db``;
-          if (appId) {
-            rows = await db`SELECT * FROM messages WHERE app_id = ${appId} AND (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ${cursorCond} ORDER BY id DESC LIMIT ${limitN + 1}`;
+          if (appId && cursorId) {
+            rows = await db`SELECT * FROM messages WHERE app_id=${appId} AND id<${cursorId} AND (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ORDER BY id DESC LIMIT ${fetch}`;
+          } else if (appId) {
+            rows = await db`SELECT * FROM messages WHERE app_id=${appId} AND (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ORDER BY id DESC LIMIT ${fetch}`;
+          } else if (cursorId) {
+            rows = await db`SELECT * FROM messages WHERE id<${cursorId} AND (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ORDER BY id DESC LIMIT ${fetch}`;
           } else {
-            rows = await db`SELECT * FROM messages WHERE (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ${cursorCond} ORDER BY id DESC LIMIT ${limitN + 1}`;
+            rows = await db`SELECT * FROM messages WHERE (body ILIKE ${s} OR from_number ILIKE ${s} OR from_sender ILIKE ${s}) ORDER BY id DESC LIMIT ${fetch}`;
           }
           const hasMore = rows.length > limitN;
           const data = (rows as any[]).slice(0, limitN).map(mapMessage);
-          const lastId = data.length > 0 ? data[data.length - 1].id : null;
-          return json({ data, hasMore, lastId });
+          return json({ data, hasMore, lastId: data.length > 0 ? data[data.length - 1].id : null });
         } else {
-          // Browse mode — plain array with cursor pagination
-          const cursorCond = cursor ? db`AND id < ${Number(cursor)}` : db``;
-          if (appId) {
-            rows = await db`SELECT * FROM messages WHERE app_id = ${appId} ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+          // ── Browse mode → plain array ──────────────────────────────────
+          if (appId && cursorId) {
+            rows = await db`SELECT * FROM messages WHERE app_id=${appId} AND id<${cursorId} ORDER BY id DESC LIMIT ${limitN}`;
+          } else if (appId) {
+            rows = await db`SELECT * FROM messages WHERE app_id=${appId} ORDER BY id DESC LIMIT ${limitN}`;
+          } else if (userId && cursorId) {
+            rows = await db`SELECT * FROM messages WHERE user_id=${userId} AND id<${cursorId} ORDER BY id DESC LIMIT ${limitN}`;
           } else if (userId) {
-            rows = await db`SELECT * FROM messages WHERE user_id = ${userId} ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+            rows = await db`SELECT * FROM messages WHERE user_id=${userId} ORDER BY id DESC LIMIT ${limitN}`;
+          } else if (deviceId && cursorId) {
+            rows = await db`SELECT * FROM messages WHERE device_id=${deviceId} AND id<${cursorId} ORDER BY id DESC LIMIT ${limitN}`;
           } else if (deviceId) {
-            rows = await db`SELECT * FROM messages WHERE device_id = ${deviceId} ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+            rows = await db`SELECT * FROM messages WHERE device_id=${deviceId} ORDER BY id DESC LIMIT ${limitN}`;
+          } else if (cursorId) {
+            rows = await db`SELECT * FROM messages WHERE id<${cursorId} ORDER BY id DESC LIMIT ${limitN}`;
           } else {
-            rows = await db`SELECT * FROM messages ${cursorCond} ORDER BY id DESC LIMIT ${limitN}`;
+            rows = await db`SELECT * FROM messages ORDER BY id DESC LIMIT ${limitN}`;
           }
           return json((rows as any[]).map(mapMessage));
         }
