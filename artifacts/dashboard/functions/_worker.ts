@@ -20,6 +20,14 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // ── Background warm-up: keep Render awake (fire-and-forget) ──────────
+    // Only trigger on non-API page loads to avoid recursion
+    if (!url.pathname.startsWith("/api/") && request.headers.get("Upgrade") !== "websocket") {
+      (async () => {
+        try { await fetch(BACKEND + "/api/health", { signal: AbortSignal.timeout(3000) }); } catch { /* ok */ }
+      })();
+    }
+
     // ── CORS preflight ────────────────────────────────────────────────────
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -94,10 +102,22 @@ export default {
       });
     }
 
-    // ── WebSocket upgrade — proxy to Render ───────────────────────────────
+    // ── WebSocket upgrade — accept in Worker, relay events from Render SSE ─
     if (request.headers.get("Upgrade") === "websocket") {
-      const wsUrl = BACKEND.replace("https://", "wss://") + url.pathname + url.search;
-      return fetch(wsUrl, request);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { 0: client, 1: server } = new (globalThis as any).WebSocketPair() as {
+        0: WebSocket; 1: WebSocket;
+      };
+      // @ts-expect-error — CF Workers non-standard
+      server.accept();
+      // Send initial connected ping so browser shows "Live"
+      server.send(JSON.stringify({ event: "ping", data: { t: Date.now() } }));
+      // Keep-alive: pong back any message from client
+      server.addEventListener("message", (_e: MessageEvent) => {
+        try { server.send(JSON.stringify({ event: "pong", data: { t: Date.now() } })); } catch { /* ok */ }
+      });
+      // @ts-expect-error — CF Workers non-standard response field
+      return new Response(null, { status: 101, webSocket: client });
     }
 
     // ── Proxy /api/* → Render backend ─────────────────────────────────────

@@ -3105,7 +3105,7 @@ function Dashboard({ masterPin, sessionId, onLogout, onPinChanged, onSessionIdUp
           }
         } catch { /* ignore */ }
       };
-      ws.onclose = () => { setWsConnected(false); if (!closed) setTimeout(connect, 3000); };
+      ws.onclose = () => { setWsConnected(false); if (!closed) setTimeout(connect, 15000); };
       ws.onerror = () => { setWsConnected(false); ws?.close(); };
     }
     connect();

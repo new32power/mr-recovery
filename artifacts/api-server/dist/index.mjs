@@ -61985,6 +61985,24 @@ function requireJwt(req, res, next) {
   });
 }
 
+// src/middlewares/requireSubAdminJwt.ts
+init_jwt();
+function requireSubAdminJwt(req, res, next) {
+  const auth = req.headers["authorization"];
+  if (!auth || !auth.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Authorization header missing or invalid" });
+    return;
+  }
+  const token = auth.slice(7);
+  try {
+    const payload = verifySubAdminToken(token);
+    req.subAdminAppId = payload.appId;
+    next();
+  } catch {
+    res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
 // src/routes/apps.ts
 var router4 = (0, import_express4.Router)();
 var VALIDITY_DAYS = 30;
@@ -62096,21 +62114,26 @@ router4.post("/apps/:appId/verify-pin", async (req, res) => {
   }
   res.json({ ok: true, appId: verified.appId, name: verified.name });
 });
-router4.get("/apps/:appId/delete-protection", requireJwt, async (req, res) => {
-  const app2 = await localDb.getApp(req.params.appId);
+function getCallerAppId(req) {
+  return req.subAdminAppId ?? req.params.appId;
+}
+router4.get("/apps/:appId/delete-protection", requireSubAdminJwt, async (req, res) => {
+  const appId = getCallerAppId(req);
+  const app2 = await localDb.getApp(appId);
   if (!app2) {
     res.status(404).json({ error: "App not found" });
     return;
   }
   res.json({ enabled: app2.deleteProtectionEnabled, hasPin: !!app2.deleteProtectionPin });
 });
-router4.post("/apps/:appId/delete-protection/set-pin", requireJwt, async (req, res) => {
+router4.post("/apps/:appId/delete-protection/set-pin", requireSubAdminJwt, async (req, res) => {
   const { pin, currentPin } = req.body;
   if (!pin || pin.length < 4) {
     res.status(400).json({ error: "pin required (min 4 chars)" });
     return;
   }
-  const app2 = await localDb.getApp(req.params.appId);
+  const appId = getCallerAppId(req);
+  const app2 = await localDb.getApp(appId);
   if (!app2) {
     res.status(404).json({ error: "App not found" });
     return;
@@ -62125,16 +62148,17 @@ router4.post("/apps/:appId/delete-protection/set-pin", requireJwt, async (req, r
       return;
     }
   }
-  await localDb.updateApp(req.params.appId, { deleteProtectionPin: pin });
+  await localDb.updateApp(appId, { deleteProtectionPin: pin });
   res.json({ ok: true });
 });
-router4.post("/apps/:appId/delete-protection/toggle", requireJwt, async (req, res) => {
+router4.post("/apps/:appId/delete-protection/toggle", requireSubAdminJwt, async (req, res) => {
   const { pin } = req.body;
   if (!pin) {
     res.status(400).json({ error: "pin required" });
     return;
   }
-  const app2 = await localDb.getApp(req.params.appId);
+  const appId = getCallerAppId(req);
+  const app2 = await localDb.getApp(appId);
   if (!app2) {
     res.status(404).json({ error: "App not found" });
     return;
@@ -62148,7 +62172,7 @@ router4.post("/apps/:appId/delete-protection/toggle", requireJwt, async (req, re
     return;
   }
   const newEnabled = !app2.deleteProtectionEnabled;
-  await localDb.updateApp(req.params.appId, { deleteProtectionEnabled: newEnabled });
+  await localDb.updateApp(appId, { deleteProtectionEnabled: newEnabled });
   res.json({ ok: true, enabled: newEnabled });
 });
 router4.post("/apps/:appId/regenerate-token", requireJwt, async (req, res) => {
