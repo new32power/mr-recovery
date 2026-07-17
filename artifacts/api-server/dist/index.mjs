@@ -62710,6 +62710,15 @@ pool.query(`
   )
 `).catch(() => {
 });
+pool.query(`
+  CREATE TABLE IF NOT EXISTS notices (
+    id SERIAL PRIMARY KEY,
+    text TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`).catch(() => {
+});
 var RATE_LOCKOUT_MS = 15 * 60 * 1e3;
 function stripPin2(obj) {
   const { deleteProtectionPin: _dp, ...rest } = obj;
@@ -62890,6 +62899,96 @@ router12.get("/master/all-devices", requireJwt, async (req, res) => {
   const result = hasFcm ? rows.filter((d) => d.fcmToken) : rows;
   res.json(result.map((d) => ({ ...d, hasFcm: !!d.fcmToken })));
 });
+router12.post("/master/ping", requireJwt, (_req, res) => {
+  res.json({ ok: true });
+});
+router12.post("/master/sse-token", requireJwt, (req, res) => {
+  const sessionId = req.masterSessionId ?? randomUUID2();
+  const token = signMasterToken(sessionId, "1h");
+  res.json({ token });
+});
+router12.get("/master/stats", requireJwt, async (_req, res) => {
+  try {
+    const { rows: [apps3] } = await pool.query(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::text AS active,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')::text AS today
+      FROM apps
+    `);
+    const { rows: [devices2] } = await pool.query(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE last_online >= NOW() - INTERVAL '5 minutes')::text AS online
+      FROM devices
+    `);
+    const { rows: [msgs] } = await pool.query(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE received_at >= NOW() - INTERVAL '1 day')::text AS today
+      FROM messages
+    `);
+    const { rows: [sessions2] } = await pool.query(`
+      SELECT COUNT(*)::text AS active FROM master_sessions
+    `);
+    res.json({
+      totalApps: Number(apps3?.total ?? 0),
+      activeApps: Number(apps3?.active ?? 0),
+      appsToday: Number(apps3?.today ?? 0),
+      totalDevices: Number(devices2?.total ?? 0),
+      onlineCount: Number(devices2?.online ?? 0),
+      totalMessages: Number(msgs?.total ?? 0),
+      messagesToday: Number(msgs?.today ?? 0),
+      activeSessions: Number(sessions2?.active ?? 0)
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Stats query failed", detail: String(err) });
+  }
+});
+router12.get("/master/notices", requireJwt, async (_req, res) => {
+  const { rows } = await pool.query(
+    `SELECT id, text, active, created_at FROM notices ORDER BY created_at DESC`
+  );
+  res.json(rows.map((r) => ({ id: r.id, text: r.text, active: r.active, createdAt: r.created_at })));
+});
+router12.post("/master/notices", requireJwt, async (req, res) => {
+  const { text: text2 } = req.body;
+  if (!text2?.trim()) {
+    res.status(400).json({ error: "text required" });
+    return;
+  }
+  const { rows: [row] } = await pool.query(
+    `INSERT INTO notices (text) VALUES ($1) RETURNING id, text, active, created_at`,
+    [text2.trim()]
+  );
+  res.status(201).json({ id: row.id, text: row.text, active: row.active, createdAt: row.created_at });
+});
+router12.patch("/master/notices/:id", requireJwt, async (req, res) => {
+  const id = Number(req.params.id);
+  const { active, text: text2 } = req.body;
+  if (active !== void 0) {
+    await pool.query(`UPDATE notices SET active = $1 WHERE id = $2`, [active, id]);
+  }
+  if (text2?.trim()) {
+    await pool.query(`UPDATE notices SET text = $1 WHERE id = $2`, [text2.trim(), id]);
+  }
+  res.json({ ok: true });
+});
+router12.delete("/master/notices/:id", requireJwt, async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query(`DELETE FROM notices WHERE id = $1`, [id]);
+  res.json({ ok: true });
+});
+router12.get("/notice", async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, text FROM notices WHERE active = true ORDER BY created_at DESC`
+    );
+    res.json({ notices: rows });
+  } catch {
+    res.json({ notices: [] });
+  }
+});
 var master_default = router12;
 
 // src/routes/token-app.ts
@@ -62954,6 +63053,9 @@ function recordFailed(ip) {
   if (e.count >= RATE_MAX) e.lockedUntil = Date.now() + RATE_LOCKOUT_MS2;
   rateLimitMap.set(ip, e);
 }
+router14.get("/auth/config", (_req, res) => {
+  res.json({ googleClientId: process.env["GOOGLE_CLIENT_ID"] ?? null });
+});
 router14.post("/auth/google-verify", async (req, res) => {
   const ip = getIp(req);
   const rate = checkRate(ip);
@@ -62968,7 +63070,7 @@ router14.post("/auth/google-verify", async (req, res) => {
   }
   const allowedEmail = process.env["MASTER_ADMIN_EMAIL"];
   if (!allowedEmail) {
-    res.status(503).json({ error: "MASTER_ADMIN_EMAIL not set on server" });
+    res.status(503).json({ error: "MASTER_ADMIN_EMAIL not configured on server" });
     return;
   }
   try {
