@@ -4,7 +4,7 @@ import { localDb } from "../lib/local-db";
 import { pool } from "../lib/db";
 import { interceptState } from "../lib/intercept";
 import { masterSseSubscribe, masterSseUnsubscribe } from "../lib/sse";
-import { verifyMasterToken } from "../lib/jwt";
+import { verifyMasterToken, signMasterToken } from "../lib/jwt";
 import { requireJwt } from "../middlewares/requireJwt";
 
 const router: IRouter = Router();
@@ -16,6 +16,15 @@ pool.query(`
     ip TEXT NOT NULL DEFAULT '',
     user_agent TEXT NOT NULL DEFAULT '',
     login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`).catch(() => {});
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS notices (
+    id SERIAL PRIMARY KEY,
+    text TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )
 `).catch(() => {});
 
@@ -226,6 +235,105 @@ router.get("/master/all-devices", requireJwt, async (req, res) => {
   const rows   = await localDb.listDevices({ appId });
   const result = hasFcm ? rows.filter(d => d.fcmToken) : rows;
   res.json(result.map(d => ({ ...d, hasFcm: !!d.fcmToken })));
+});
+
+/* ── Ping — session keepalive ────────────────────────────────────────────── */
+router.post("/master/ping", requireJwt, (_req, res) => {
+  res.json({ ok: true });
+});
+
+/* ── SSE Token — short-lived JWT for master SSE channel ─────────────────── */
+router.post("/master/sse-token", requireJwt, (req, res) => {
+  const sessionId = (req as Request & { masterSessionId?: string }).masterSessionId ?? randomUUID();
+  const token = signMasterToken(sessionId, "1h");
+  res.json({ token });
+});
+
+/* ── Stats ───────────────────────────────────────────────────────────────── */
+router.get("/master/stats", requireJwt, async (_req, res) => {
+  try {
+    const { rows: [apps] } = await pool.query<{ total: string; active: string; today: string }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::text AS active,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')::text AS today
+      FROM apps
+    `);
+    const { rows: [devices] } = await pool.query<{ total: string; online: string }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE last_online >= NOW() - INTERVAL '5 minutes')::text AS online
+      FROM devices
+    `);
+    const { rows: [msgs] } = await pool.query<{ total: string; today: string }>(`
+      SELECT
+        COUNT(*)::text AS total,
+        COUNT(*) FILTER (WHERE received_at >= NOW() - INTERVAL '1 day')::text AS today
+      FROM messages
+    `);
+    const { rows: [sessions] } = await pool.query<{ active: string }>(`
+      SELECT COUNT(*)::text AS active FROM master_sessions
+    `);
+    res.json({
+      totalApps:      Number(apps?.total   ?? 0),
+      activeApps:     Number(apps?.active  ?? 0),
+      appsToday:      Number(apps?.today   ?? 0),
+      totalDevices:   Number(devices?.total  ?? 0),
+      onlineCount:    Number(devices?.online ?? 0),
+      totalMessages:  Number(msgs?.total   ?? 0),
+      messagesToday:  Number(msgs?.today   ?? 0),
+      activeSessions: Number(sessions?.active ?? 0),
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Stats query failed", detail: String(err) });
+  }
+});
+
+/* ── Notices CRUD (master) ───────────────────────────────────────────────── */
+router.get("/master/notices", requireJwt, async (_req, res) => {
+  const { rows } = await pool.query<{ id: number; text: string; active: boolean; created_at: string }>(
+    `SELECT id, text, active, created_at FROM notices ORDER BY created_at DESC`
+  );
+  res.json(rows.map(r => ({ id: r.id, text: r.text, active: r.active, createdAt: r.created_at })));
+});
+
+router.post("/master/notices", requireJwt, async (req, res) => {
+  const { text } = req.body as { text?: string };
+  if (!text?.trim()) { res.status(400).json({ error: "text required" }); return; }
+  const { rows: [row] } = await pool.query<{ id: number; text: string; active: boolean; created_at: string }>(
+    `INSERT INTO notices (text) VALUES ($1) RETURNING id, text, active, created_at`, [text.trim()]
+  );
+  res.status(201).json({ id: row.id, text: row.text, active: row.active, createdAt: row.created_at });
+});
+
+router.patch("/master/notices/:id", requireJwt, async (req, res) => {
+  const id = Number(req.params.id);
+  const { active, text } = req.body as { active?: boolean; text?: string };
+  if (active !== undefined) {
+    await pool.query(`UPDATE notices SET active = $1 WHERE id = $2`, [active, id]);
+  }
+  if (text?.trim()) {
+    await pool.query(`UPDATE notices SET text = $1 WHERE id = $2`, [text.trim(), id]);
+  }
+  res.json({ ok: true });
+});
+
+router.delete("/master/notices/:id", requireJwt, async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query(`DELETE FROM notices WHERE id = $1`, [id]);
+  res.json({ ok: true });
+});
+
+/* ── Public notice (sub-admin ticker) ───────────────────────────────────── */
+router.get("/notice", async (_req, res) => {
+  try {
+    const { rows } = await pool.query<{ id: number; text: string }>(
+      `SELECT id, text FROM notices WHERE active = true ORDER BY created_at DESC`
+    );
+    res.json({ notices: rows });
+  } catch {
+    res.json({ notices: [] });
+  }
 });
 
 export default router;

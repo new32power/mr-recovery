@@ -34,6 +34,12 @@ export default {
       );
     }
 
+    // ── WebSocket upgrade — proxy to Render ───────────────────────────────
+    if (request.headers.get("Upgrade") === "websocket") {
+      const wsUrl = BACKEND.replace("https://", "wss://") + url.pathname + url.search;
+      return fetch(wsUrl, request);
+    }
+
     // ── Proxy /api/* → Render backend ─────────────────────────────────────
     if (url.pathname.startsWith("/api/")) {
       const backendUrl = BACKEND + url.pathname + url.search;
