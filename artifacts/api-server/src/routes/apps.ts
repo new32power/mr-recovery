@@ -131,7 +131,7 @@ router.post("/apps/:appId/regenerate-token", requireJwt, async (req, res) => {
   if (!app) { res.status(404).json({ error: "App not found" }); return; }
   const { randomUUID } = await import("node:crypto");
   const newToken = randomUUID();
-  await localDb.updateApp(appId, { panelToken: newToken });
+  // Token is session-only (not persisted in DB)
   res.json({ ok: true, panelToken: newToken });
 });
 

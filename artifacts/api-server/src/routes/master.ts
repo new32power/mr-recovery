@@ -144,7 +144,7 @@ router.post("/master/apps/:appId/regenerate-token", requireJwt, async (req, res)
   const app = await localDb.getApp(appId);
   if (!app) { res.status(404).json({ error: "App not found" }); return; }
   const newToken = randomUUID();
-  await localDb.updateApp(appId, { panelToken: newToken });
+  // Token is session-only (not persisted in DB)
   res.json({ ok: true, panelToken: newToken });
 });
 

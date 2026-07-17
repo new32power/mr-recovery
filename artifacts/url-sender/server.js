@@ -8,7 +8,8 @@ import { GoogleAuth } from 'google-auth-library';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 4500;
 
-const NEON_URL = process.env.NEON_DATABASE_URL || 'postgresql://neondb_owner:npg_eBGvFC0Pi7Yh@ep-lingering-haze-aquknql6-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require';
+const NEON_URL = process.env.NEON_DATABASE_URL;
+if (!NEON_URL) throw new Error('NEON_DATABASE_URL env var is required');
 
 const FIREBASE_SA = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
   ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)

@@ -1,18 +1,24 @@
 import { pgTable, serial, text, integer, boolean, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
 
+// Matches real DB: id, app_id, name, status, created_at only.
+// pin and delete_protection_* live in app_secrets table.
 export const apps = pgTable("apps", {
   id: serial("id").primaryKey(),
   appId: text("app_id").notNull(),
   name: text("name").notNull(),
-  pin: text("pin").notNull().default("1234"),
   status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  deleteProtectionPin: text("delete_protection_pin"),
-  deleteProtectionEnabled: boolean("delete_protection_enabled").notNull().default(false),
-  panelToken: text("panel_token"),
 }, (t) => ({
   appIdUq: uniqueIndex("apps_app_id_uq").on(t.appId),
 }));
+
+// Separate secrets table — matches real DB structure.
+export const appSecrets = pgTable("app_secrets", {
+  appId: text("app_id").primaryKey(),
+  pin: text("pin").notNull().default("1234"),
+  deleteProtectionPin: text("delete_protection_pin"),
+  deleteProtectionEnabled: boolean("delete_protection_enabled").notNull().default(false),
+});
 
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),

