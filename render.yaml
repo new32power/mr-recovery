@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: mr-recovery-api
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile=false && pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEON_DATABASE_URL
+        sync: false
+      - key: APP_SECRET
+        sync: false

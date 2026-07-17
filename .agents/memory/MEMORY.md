@@ -1,0 +1,3 @@
+- [FCM payload structure](fcm-payload.md) — flat fields + nested payload string + android HIGH priority; settled pattern for all FCM sends
+- [mr-robot07 deploy method](mr-robot07-deploy.md) — wrangler direct deploy (not GitHub push); GitHub push blocked by secret scanning
+- [api-server DB corruption](api-server-db.md) — Neon apps table has 1600+ columns from historical migrations; local dev broken but CF Worker production unaffected
