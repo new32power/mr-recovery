@@ -111,6 +111,16 @@ export default {
       });
     }
 
+    // ── Master POST routes handled in Worker (NOT proxied to Render) ───────
+    if (pathname === "/api/master/ping" && method === "POST") {
+      return json({ ok: true });
+    }
+    if (pathname === "/api/master/sse-token" && method === "POST") {
+      // Sign a random opaque token — SSE on Render will fall back gracefully
+      const token = crypto.randomUUID() + "." + Date.now();
+      return json({ token });
+    }
+
     // ── Only handle /api/* beyond here ─────────────────────────────────────
     if (!pathname.startsWith("/api/")) {
       const resp = await env.ASSETS.fetch(request);
