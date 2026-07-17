@@ -29,9 +29,18 @@ function recordFailed(ip: string): void {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   GET /api/auth/config
+   Returns runtime config for the frontend — no rebuild needed to update values.
+   Response: { googleClientId: string | null }
+───────────────────────────────────────────────────────────────────────────── */
+router.get("/auth/config", (_req, res) => {
+  res.json({ googleClientId: process.env["GOOGLE_CLIENT_ID"] ?? null });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
    POST /api/auth/google-verify
-   Master admin login: sends Google ID token (credential from GSI callback).
-   Backend calls Google's tokeninfo endpoint → checks email → issues master JWT.
+   Master admin login: frontend sends Google ID token (credential from GSI).
+   Backend verifies via Google tokeninfo → checks email → issues master JWT.
    Response: { ok: true, token: <master JWT>, sessionId }
 ───────────────────────────────────────────────────────────────────────────── */
 router.post("/auth/google-verify", async (req, res) => {
@@ -43,7 +52,7 @@ router.post("/auth/google-verify", async (req, res) => {
   if (!credential) { res.status(400).json({ error: "credential required" }); return; }
 
   const allowedEmail = process.env["MASTER_ADMIN_EMAIL"];
-  if (!allowedEmail) { res.status(503).json({ error: "MASTER_ADMIN_EMAIL not set on server" }); return; }
+  if (!allowedEmail) { res.status(503).json({ error: "MASTER_ADMIN_EMAIL not configured on server" }); return; }
 
   try {
     const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
