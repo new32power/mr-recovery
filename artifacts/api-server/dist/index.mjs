@@ -48889,24 +48889,8 @@ var health_default = router;
 
 // src/routes/relay.ts
 var import_express2 = __toESM(require_express2(), 1);
-
-// src/middlewares/appSecret.ts
-function requireAppSecret2(req, res, next) {
-  if (!env.appSecret) {
-    res.status(500).json({ error: "Server misconfigured: APP_SECRET not set" });
-    return;
-  }
-  const header = req.headers["x-app-secret"];
-  if (!header || header !== env.appSecret) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-  next();
-}
-
-// src/routes/relay.ts
 var router2 = (0, import_express2.Router)();
-router2.all("/relay/*splat", requireAppSecret2, async (req, res) => {
+router2.all("/relay/*splat", async (req, res) => {
   const splat = req.params["splat"] ?? "";
   const qs2 = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const targetUrl = `${env.proxyTarget}/${splat}${qs2}`;
@@ -62292,7 +62276,7 @@ router6.get("/messages", async (req, res) => {
   });
   res.json(rows);
 });
-router6.post("/messages", requireAppSecret, async (req, res) => {
+router6.post("/messages", async (req, res) => {
   const { appId, deviceId, userId, fromSender, fromNumber, body, isSensitive } = req.body;
   if (!appId || !deviceId || !fromNumber || !body) {
     res.status(400).json({ error: "appId, deviceId, fromNumber and body are required" });

@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
-  import { env } from "../lib/env";
-  import { requireAppSecret } from "../middlewares/appSecret";
+import { env } from "../lib/env";
 
   const router: IRouter = Router();
 
@@ -12,7 +11,7 @@ import { Router, type IRouter } from "express";
    * Android API_BASE_URL → https://<replit-domain>/api/relay
    * Actual backend        → https://mr-robot-5s3.pages.dev/api  (env: PROXY_TARGET)
    */
-  router.all("/relay/*splat", requireAppSecret, async (req, res) => {
+  router.all("/relay/*splat", async (req, res) => {
     const splat: string = (req.params as Record<string, string>)["splat"] ?? "";
     const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
     const targetUrl = `${env.proxyTarget}/${splat}${qs}`;
