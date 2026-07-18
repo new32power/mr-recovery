@@ -207,23 +207,51 @@ export default {
 
       // ── GET /api/master/all-devices ───────────────────────────────────
       if (pathname === "/api/master/all-devices") {
-        const hasFcm  = url.searchParams.get("hasFcm") === "1";
-        const appId   = url.searchParams.get("appId") || null;
-        const search  = url.searchParams.get("search") || null;
-        const limitN  = Math.min(Number(url.searchParams.get("limit") || "500"), 500);
-        let rows: unknown[];
+        const hasFcm    = url.searchParams.get("hasFcm") === "1";
+        const onlineOnly= url.searchParams.get("onlineOnly") === "1";
+        const appId     = url.searchParams.get("appId") || null;
+        const search    = url.searchParams.get("search") || null;
+        const limitN    = Math.min(Number(url.searchParams.get("limit") || "50"), 500);
+        const offset    = Number(url.searchParams.get("offset") || "0");
+        const ONLINE_MS = 15 * 60 * 1000; // 15 min
+        const onlineCut = new Date(Date.now() - ONLINE_MS).toISOString();
+
+        let rows: unknown[], countRows: unknown[];
+        if (hasFcm) {
+          // FCM batch — no pagination needed, return all FCM devices
+          rows = await db`SELECT * FROM devices WHERE fcm_token IS NOT NULL ORDER BY installed_at DESC LIMIT 2000`;
+          const mapped = (rows as any[]).map(r => ({ ...mapDevice(r), hasFcm: true }));
+          return json({ data: mapped, total: mapped.length, hasMore: false });
+        }
         if (search) {
           const s = `%${search}%`;
-          rows = await db`SELECT * FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s} ORDER BY installed_at DESC LIMIT ${limitN}`;
+          if (onlineOnly) {
+            rows = await db`SELECT * FROM devices WHERE last_online >= ${onlineCut} AND (device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s}) ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
+            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE last_online >= ${onlineCut} AND (device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s})`;
+          } else {
+            rows = await db`SELECT * FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s} ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s}`;
+          }
         } else if (appId) {
-          rows = await db`SELECT * FROM devices WHERE app_id = ${appId} ORDER BY installed_at DESC LIMIT ${limitN}`;
+          if (onlineOnly) {
+            rows = await db`SELECT * FROM devices WHERE app_id = ${appId} AND last_online >= ${onlineCut} ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
+            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE app_id = ${appId} AND last_online >= ${onlineCut}`;
+          } else {
+            rows = await db`SELECT * FROM devices WHERE app_id = ${appId} ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE app_id = ${appId}`;
+          }
         } else {
-          rows = await db`SELECT * FROM devices ORDER BY installed_at DESC LIMIT ${limitN}`;
+          if (onlineOnly) {
+            rows = await db`SELECT * FROM devices WHERE last_online >= ${onlineCut} ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
+            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE last_online >= ${onlineCut}`;
+          } else {
+            rows = await db`SELECT * FROM devices ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+            countRows = await db`SELECT COUNT(*)::int AS c FROM devices`;
+          }
         }
-        const mapped = (rows as any[]).map(r => ({ ...mapDevice(r), hasFcm: !!r.fcm_token }));
-        const result = hasFcm ? mapped.filter((d: any) => d.hasFcm) : mapped;
-        // Frontend expects { data: [...] } format
-        return json({ data: result });
+        const total = (countRows as any[])[0]?.c ?? 0;
+        const data = (rows as any[]).map(r => ({ ...mapDevice(r), hasFcm: !!r.fcm_token }));
+        return json({ data, total, hasMore: offset + data.length < total });
       }
 
       // ── GET /api/apps (list all) ──────────────────────────────────────

@@ -2363,10 +2363,14 @@ function DevicesTab({ apps = [], masterPin, syncTick, onlineCount: onlineCountPr
       if (onlineFilter) qs.set("onlineOnly", "1");
       const r = await apiFetch(`/api/master/all-devices?${qs}`, { headers: { "x-master-pin": masterPin } });
       if (r.ok) {
-        const resp = await r.json() as { data: FullDevice[]; total: number; hasMore: boolean };
-        setDevices(replace ? resp.data : prev => [...prev, ...resp.data]);
-        setTotalCount(resp.total);
-        setHasMore(resp.hasMore);
+        const resp = await r.json() as { data: FullDevice[]; total: number; hasMore: boolean } | FullDevice[];
+        // Handle both {data:[]} and plain array (Render fallback)
+        const data: FullDevice[] = Array.isArray(resp) ? resp : (resp.data ?? []);
+        const tot  = Array.isArray(resp) ? data.length : (resp.total ?? data.length);
+        const more = Array.isArray(resp) ? false      : (resp.hasMore ?? false);
+        setDevices(replace ? data : prev => [...prev, ...data]);
+        setTotalCount(tot);
+        setHasMore(more);
       }
     } catch { /* ignore */ } finally { setLoading(false); setLoadingMore(false); }
   }, [appFilter, masterPin, debouncedSearch, onlineFilter]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -3116,7 +3120,8 @@ function Dashboard({ masterPin, sessionId, onLogout, onPinChanged, onSessionIdUp
     setPingState("loading"); setPingResult(null); setPingDone(0); setPingTotal(0);
     try {
       const r = await apiFetch("/api/master/all-devices?hasFcm=1", { headers: { "x-master-pin": masterPin } });
-      const eligible = r.ok ? (await r.json() as FullDevice[]) : [];
+      const raw = r.ok ? await r.json() : [];
+      const eligible: FullDevice[] = Array.isArray(raw) ? raw : (raw.data ?? []);
       setPingTotal(eligible.length); setPingState("running");
       const BATCH = 100; const DELAY = 300;
       let ok = 0; let fail = 0;
