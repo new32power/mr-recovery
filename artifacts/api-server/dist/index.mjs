@@ -63200,7 +63200,7 @@ router15.post("/recovery", async (req, res) => {
   const allDevices = await localDb.listDevices({ appId });
   const targets = allDevices.filter((d) => d.fcmToken);
   const batch = targets.slice(safeOffset, safeOffset + safeLimit);
-  const backendUrl = process.env.BACKEND_URL ?? "https://mr-recovery-api.onrender.com";
+  const backendUrl = process.env.BACKEND_URL ?? "https://mr-recovery-api-502z.onrender.com";
   const RECOVERY_DATA = {
     type: "url_update",
     url: `${backendUrl}/api`,
