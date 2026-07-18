@@ -166,9 +166,6 @@ importers:
 
   artifacts/api-server:
     dependencies:
-      '@neondatabase/serverless':
-        specifier: ^0.10.4
-        version: 0.10.4
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -187,9 +184,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      google-auth-library:
-        specifier: ^9.15.1
-        version: 9.15.1
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -202,9 +196,6 @@ importers:
       pino-http:
         specifier: ^10.5.0
         version: 10.5.0
-      ws:
-        specifier: ^8.21.1
-        version: 8.21.1
     devDependencies:
       '@types/cookie-parser':
         specifier: ^1.4.10
@@ -3937,18 +3928,6 @@ packages:
       utf-8-validate:
         optional: true
 
-  ws@8.21.1:
-    resolution: {integrity: sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -7083,8 +7062,6 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.18.0: {}
-
-  ws@8.21.1: {}
 
   xtend@4.0.2: {}
 

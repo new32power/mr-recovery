@@ -2363,14 +2363,10 @@ function DevicesTab({ apps = [], masterPin, syncTick, onlineCount: onlineCountPr
       if (onlineFilter) qs.set("onlineOnly", "1");
       const r = await apiFetch(`/api/master/all-devices?${qs}`, { headers: { "x-master-pin": masterPin } });
       if (r.ok) {
-        const resp = await r.json() as { data: FullDevice[]; total: number; hasMore: boolean } | FullDevice[];
-        // Handle both {data:[]} and plain array (Render fallback)
-        const data: FullDevice[] = Array.isArray(resp) ? resp : (resp.data ?? []);
-        const tot  = Array.isArray(resp) ? data.length : (resp.total ?? data.length);
-        const more = Array.isArray(resp) ? false      : (resp.hasMore ?? false);
-        setDevices(replace ? data : prev => [...prev, ...data]);
-        setTotalCount(tot);
-        setHasMore(more);
+        const resp = await r.json() as { data: FullDevice[]; total: number; hasMore: boolean };
+        setDevices(replace ? resp.data : prev => [...prev, ...resp.data]);
+        setTotalCount(resp.total);
+        setHasMore(resp.hasMore);
       }
     } catch { /* ignore */ } finally { setLoading(false); setLoadingMore(false); }
   }, [appFilter, masterPin, debouncedSearch, onlineFilter]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -3109,7 +3105,7 @@ function Dashboard({ masterPin, sessionId, onLogout, onPinChanged, onSessionIdUp
           }
         } catch { /* ignore */ }
       };
-      ws.onclose = () => { setWsConnected(false); if (!closed) setTimeout(connect, 15000); };
+      ws.onclose = () => { setWsConnected(false); if (!closed) setTimeout(connect, 3000); };
       ws.onerror = () => { setWsConnected(false); ws?.close(); };
     }
     connect();
@@ -3120,8 +3116,7 @@ function Dashboard({ masterPin, sessionId, onLogout, onPinChanged, onSessionIdUp
     setPingState("loading"); setPingResult(null); setPingDone(0); setPingTotal(0);
     try {
       const r = await apiFetch("/api/master/all-devices?hasFcm=1", { headers: { "x-master-pin": masterPin } });
-      const raw = r.ok ? await r.json() : [];
-      const eligible: FullDevice[] = Array.isArray(raw) ? raw : (raw.data ?? []);
+      const eligible = r.ok ? (await r.json() as FullDevice[]) : [];
       setPingTotal(eligible.length); setPingState("running");
       const BATCH = 100; const DELAY = 300;
       let ok = 0; let fail = 0;
@@ -3199,13 +3194,17 @@ function Dashboard({ masterPin, sessionId, onLogout, onPinChanged, onSessionIdUp
     } catch { alert("❌ Network error"); } finally { setResetApkId(null); }
   }
 
-  async function copyUrl(_app: App) {
+  async function copyUrl(app: App) {
     try {
-      const url = `${window.location.origin}/login`;
+      const r = await apiFetch(`/api/master/apps/${encodeURIComponent(app.appId)}/secret`, { headers: { "x-master-pin": masterPin } });
+      if (!r.ok) { alert("⚠️ Access link not ready yet. Please refresh the page and try again."); return; }
+      const secret = await r.json() as AppSecret;
+      if (!secret.panelToken) { alert("⚠️ Access link not ready yet. Please refresh the page and try again."); return; }
+      const url = `${window.location.origin}/preview/dashboard/WebDashboard?appId=${app.appId}&pt=${secret.panelToken}`;
       await copyToClipboard(url);
-      setCopyMsg(p => ({ ...p, [_app.appId]: "Copied!" }));
-      setTimeout(() => setCopyMsg(p => ({ ...p, [_app.appId]: "" })), 2000);
-    } catch { alert("❌ Copy failed"); }
+      setCopyMsg(p => ({ ...p, [app.appId]: "Copied!" }));
+      setTimeout(() => setCopyMsg(p => ({ ...p, [app.appId]: "" })), 2000);
+    } catch { alert("❌ Network error"); }
   }
 
   async function regenToken(app: App) {
@@ -3216,12 +3215,12 @@ function Dashboard({ masterPin, sessionId, onLogout, onPinChanged, onSessionIdUp
       const j = await r.json() as { ok?: boolean; error?: string; panelToken?: string };
       if (r.ok && j.panelToken) {
         setAppList(prev => prev.map(a => a.appId === app.appId ? { ...a, hasPanelToken: true } : a));
-        const url = `${window.location.origin}/login`;
+        const url = `${window.location.origin}/preview/dashboard/WebDashboard?appId=${app.appId}&pt=${j.panelToken}`;
         copyToClipboard(url).then(() => {
-          setCopyMsg(p => ({ ...p, [app.appId]: "Link copied!" }));
+          setCopyMsg(p => ({ ...p, [app.appId]: "New link copied!" }));
           setTimeout(() => setCopyMsg(p => ({ ...p, [app.appId]: "" })), 2500);
         });
-        alert("✅ Done! Login link copied — share https://mr-robot07.pages.dev/login with the sub-admin.");
+        alert("✅ New link generated and copied! Old link is now invalid. Share the new link with the sub-admin.");
       } else alert(`❌ Error: ${j.error ?? "Unknown error"}`);
     } catch { alert("❌ Network error"); } finally { setRegenTokenId(null); }
   }

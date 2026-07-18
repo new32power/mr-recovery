@@ -13,9 +13,6 @@ import eventsRouter from "./events";
 import masterRouter from "./master";
 import tokenAppRouter from "./token-app";
 import authRouter from "./auth";
-import recoveryRouter from "./recovery";
-import initRouter from "./init";
-import tokensRouter from "./tokens";
 
 const router: IRouter = Router();
 
@@ -33,8 +30,5 @@ router.use(eventsRouter);
 router.use(vpsProxyRouter);
 router.use(relayRouter);
 router.use(tokenAppRouter);
-router.use(recoveryRouter);
-router.use(initRouter);
-router.use(tokensRouter);
 
 export default router;

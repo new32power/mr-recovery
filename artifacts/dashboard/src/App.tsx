@@ -24,10 +24,7 @@ async function _h(s: string): Promise<string> {
 function SecretGateway() {
   const [view, setView] = useState<"loading" | "main" | "access" | "404">("loading");
   useEffect(() => {
-    // Strip BASE_URL prefix so hashes match regardless of deployment base path
-    const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-    const full = window.location.pathname;
-    const p = base && full.startsWith(base) ? full.slice(base.length) || "/" : full;
+    const p = window.location.pathname;
     _h(p).then(h => {
       if (h === "939f7cec75dba1897bb7394fb92c93e650f84319ab6407cceb576126233aa3c9") setView("main");
       else if (h === "dc80d02df4953447479fc133d0b95389d6222ac8fdecd8781df7851a752a81ff") setView("access");

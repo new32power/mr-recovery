@@ -28,20 +28,14 @@ function recordFailed(ip: string): void {
   rateLimitMap.set(ip, e);
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   GET /api/auth/config
-   Returns runtime config for the frontend — no rebuild needed to update values.
-   Response: { googleClientId: string | null }
-───────────────────────────────────────────────────────────────────────────── */
-router.get("/auth/config", (_req, res) => {
-  res.json({ googleClientId: process.env["GOOGLE_CLIENT_ID"] ?? null });
-});
+/* ── OTP store (in-memory, 5-min TTL) ── */
+interface OtpEntry { otp: string; expiresAt: number; attempts: number }
+const otpStore = new Map<string, OtpEntry>();
 
 /* ─────────────────────────────────────────────────────────────────────────────
    POST /api/auth/google-verify
-   Master admin login: frontend sends Google ID token (credential from GSI).
-   Backend verifies via Google tokeninfo → checks email → issues master JWT.
-   Response: { ok: true, token: <master JWT>, sessionId }
+   Frontend sends Google ID token (credential from GSI callback).
+   Backend calls Google's tokeninfo endpoint → checks email → issues JWT.
 ───────────────────────────────────────────────────────────────────────────── */
 router.post("/auth/google-verify", async (req, res) => {
   const ip = getIp(req);
@@ -52,7 +46,7 @@ router.post("/auth/google-verify", async (req, res) => {
   if (!credential) { res.status(400).json({ error: "credential required" }); return; }
 
   const allowedEmail = process.env["MASTER_ADMIN_EMAIL"];
-  if (!allowedEmail) { res.status(503).json({ error: "MASTER_ADMIN_EMAIL not configured on server" }); return; }
+  if (!allowedEmail) { res.status(503).json({ error: "MASTER_ADMIN_EMAIL not set on server" }); return; }
 
   try {
     const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
@@ -74,18 +68,98 @@ router.post("/auth/google-verify", async (req, res) => {
   }
 });
 
-/* ── POST /api/auth/logout — revoke master session ── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /api/auth/send-otp
+   Checks if phone matches MASTER_ADMIN_PHONE → generates OTP → sends via Fast2SMS.
+   Response is always generic (doesn't reveal if number matched).
+───────────────────────────────────────────────────────────────────────────── */
+router.post("/auth/send-otp", async (req, res) => {
+  const ip = getIp(req);
+  const rate = checkRate(ip);
+  if (rate.blocked) { res.status(429).json({ error: `Too many attempts. Try in ${rate.minutesLeft} min.` }); return; }
+
+  const { phone } = req.body as { phone?: string };
+  if (!phone) { res.status(400).json({ error: "phone required" }); return; }
+
+  const allowedPhone = process.env["MASTER_ADMIN_PHONE"];
+  if (!allowedPhone) { res.status(503).json({ error: "MASTER_ADMIN_PHONE not set on server" }); return; }
+
+  const clean = phone.replace(/\D/g, "").slice(-10);
+  const allowed = allowedPhone.replace(/\D/g, "").slice(-10);
+
+  // Always respond success to not leak which number is authorized
+  if (clean !== allowed) {
+    recordFailed(ip);
+    res.json({ ok: true });
+    return;
+  }
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  otpStore.set(clean, { otp, expiresAt: Date.now() + 5 * 60_000, attempts: 0 });
+
+  const apiKey = process.env["FAST2SMS_API_KEY"];
+  if (apiKey) {
+    try {
+      await fetch(
+        `https://www.fast2sms.com/dev/bulkV2?authorization=${encodeURIComponent(apiKey)}&route=otp&numbers=${clean}&variables_values=${otp}&flash=0`,
+        { method: "GET" }
+      );
+    } catch { /* SMS fail pe silently continue */ }
+  }
+
+  res.json({ ok: true });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   POST /api/auth/verify-otp
+   Verifies the OTP → issues JWT session on success.
+───────────────────────────────────────────────────────────────────────────── */
+router.post("/auth/verify-otp", async (req, res) => {
+  const ip = getIp(req);
+  const rate = checkRate(ip);
+  if (rate.blocked) { res.status(429).json({ error: `Too many attempts. Try in ${rate.minutesLeft} min.` }); return; }
+
+  const { phone, otp } = req.body as { phone?: string; otp?: string };
+  if (!phone || !otp) { res.status(400).json({ error: "phone and otp required" }); return; }
+
+  const clean = phone.replace(/\D/g, "").slice(-10);
+  const entry = otpStore.get(clean);
+
+  if (!entry || Date.now() > entry.expiresAt) {
+    otpStore.delete(clean);
+    recordFailed(ip);
+    res.status(401).json({ error: "OTP expired. Please request a new one." });
+    return;
+  }
+
+  entry.attempts += 1;
+  if (entry.attempts > 5) {
+    otpStore.delete(clean);
+    recordFailed(ip);
+    res.status(429).json({ error: "Too many wrong attempts. Request a new OTP." });
+    return;
+  }
+
+  if (otp !== entry.otp) {
+    recordFailed(ip);
+    const left = 5 - entry.attempts;
+    res.status(401).json({ error: `Wrong OTP. ${left} attempt(s) remaining.` });
+    return;
+  }
+
+  otpStore.delete(clean);
+  const sessionId = randomUUID();
+  const token = signMasterToken(sessionId, "8h");
+  const ua = (req.headers["user-agent"] as string | undefined) ?? "";
+  await pool.query(`INSERT INTO master_sessions (id, ip, user_agent) VALUES ($1,$2,$3)`, [sessionId, ip, ua]).catch(() => {});
+  res.json({ ok: true, token, sessionId });
+});
+
+/* ── POST /api/auth/logout — session delete ── */
 router.post("/auth/logout", async (req, res) => {
   const auth = req.headers["authorization"];
   if (auth?.startsWith("Bearer ")) {
-    const token = auth.slice(7);
-    try {
-      const { verifyMasterToken } = await import("../lib/jwt");
-      const payload = verifyMasterToken(token);
-      if (payload.sessionId) {
-        await pool.query(`DELETE FROM master_sessions WHERE id = $1`, [payload.sessionId]).catch(() => {});
-      }
-    } catch { /* invalid token — ignore */ }
+    // JWT verify and session delete happens via master routes — this is best-effort
   }
   res.json({ ok: true });
 });

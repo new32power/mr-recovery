@@ -3,7 +3,6 @@ import type { WebSocket } from "ws";
 
 const sseClients = new Set<Response>();
 const wsClients = new Set<WebSocket>();
-const masterSseClients = new Set<Response>();
 
 export function sseSubscribe(res: Response): void {
   sseClients.add(res);
@@ -11,14 +10,6 @@ export function sseSubscribe(res: Response): void {
 
 export function sseUnsubscribe(res: Response): void {
   sseClients.delete(res);
-}
-
-export function masterSseSubscribe(res: Response): void {
-  masterSseClients.add(res);
-}
-
-export function masterSseUnsubscribe(res: Response): void {
-  masterSseClients.delete(res);
 }
 
 export function wsSubscribe(ws: WebSocket): void {

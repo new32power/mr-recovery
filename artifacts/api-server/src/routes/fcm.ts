@@ -89,18 +89,7 @@ async function sendFcmToToken(fcmToken: string, data: Record<string, string>, de
   const accessToken = await getAccessTokenWithRetry(credentials, req);
 
   const fcmUrl = `https://fcm.googleapis.com/v1/projects/${credentials.project_id}/messages:send`;
-
-  // Flat fields + nested payload string + OS-level HIGH priority
-  const flatData: Record<string, string> = { ...data };
-  flatData.payload = JSON.stringify(data); // nested bhi — app JSON.parse kar ke use kare
-
-  const body = JSON.stringify({
-    message: {
-      token: fcmToken,
-      data: flatData,
-      android: { priority: "HIGH" },
-    },
-  });
+  const body = JSON.stringify({ message: { token: fcmToken, data } });
 
   const fcmRes = await fetch(fcmUrl, {
     method: "POST",

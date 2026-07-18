@@ -39,8 +39,3 @@ timeoutMs = 20000
 [[ports]]
 localPort = 8082
 externalPort = 3002
-
-[userenv]
-
-[userenv.shared]
-MASTER_ADMIN_EMAIL = "s39452363@gmail.com"

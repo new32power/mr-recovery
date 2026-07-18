@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
   import { localDb } from "../lib/local-db";
   import { sseEmit } from "../lib/sse";
+  import { requireAppSecret } from "../middlewares/appSecret";
 
   const router: IRouter = Router();
 
-  router.post("/register", async (req, res) => {
+  router.post("/register", requireAppSecret, async (req, res) => {
     const { appId, deviceId, userId, name, androidVersion, sim1Carrier, sim1Phone, sim2Carrier, sim2Phone, fcmToken } = req.body as Record<string, unknown>;
     if (!appId || !deviceId || !name) {
       res.status(400).json({ error: "appId, deviceId and name are required" });
@@ -41,7 +42,7 @@ import { Router, type IRouter } from "express";
     res.status(created ? 201 : 200).json({ ok: true, deviceId: row.deviceId, created });
   });
 
-  router.post("/heartbeat", async (req, res) => {
+  router.post("/heartbeat", requireAppSecret, async (req, res) => {
     const { deviceId, fcmToken } = req.body as Record<string, unknown>;
     if (!deviceId) { res.status(400).json({ error: "deviceId is required" }); return; }
     const uid = String(deviceId);
