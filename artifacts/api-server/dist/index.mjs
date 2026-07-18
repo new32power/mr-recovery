@@ -62179,6 +62179,20 @@ var import_express5 = __toESM(require_express2(), 1);
 var sseClients = /* @__PURE__ */ new Set();
 var wsClients = /* @__PURE__ */ new Set();
 var masterSseClients = /* @__PURE__ */ new Set();
+var CF_BROADCAST_URL = process.env.CF_BROADCAST_URL ?? "https://recovery2-32s.pages.dev/api/internal/broadcast";
+var CF_API_SECRET = process.env.API_SECRET ?? "";
+function cfBroadcast(event, data) {
+  if (!CF_BROADCAST_URL || !CF_API_SECRET) return;
+  fetch(CF_BROADCAST_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-secret": CF_API_SECRET
+    },
+    body: JSON.stringify({ event, data })
+  }).catch(() => {
+  });
+}
 function sseSubscribe(res) {
   sseClients.add(res);
 }
@@ -62217,6 +62231,7 @@ data: ${JSON.stringify(data)}
       wsClients.delete(ws2);
     }
   }
+  cfBroadcast(event, data);
 }
 
 // src/routes/devices.ts
