@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
   import { localDb } from "../lib/local-db";
   import { sseEmit } from "../lib/sse";
-  import { requireAppSecret } from "../middlewares/appSecret";
 
   const router: IRouter = Router();
 
