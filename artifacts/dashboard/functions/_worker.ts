@@ -216,40 +216,40 @@ export default {
         const ONLINE_MS = 15 * 60 * 1000; // 15 min
         const onlineCut = new Date(Date.now() - ONLINE_MS).toISOString();
 
-        let rows: unknown[], countRows: unknown[];
         if (hasFcm) {
           // FCM batch — no pagination needed, return all FCM devices
-          rows = await db`SELECT * FROM devices WHERE fcm_token IS NOT NULL ORDER BY installed_at DESC LIMIT 2000`;
-          const mapped = (rows as any[]).map(r => ({ ...mapDevice(r), hasFcm: true }));
+          const fcmRows = await db`SELECT * FROM devices WHERE fcm_token IS NOT NULL ORDER BY installed_at DESC LIMIT 2000`;
+          const mapped = (fcmRows as any[]).map(r => ({ ...mapDevice(r), hasFcm: true }));
           return json({ data: mapped, total: mapped.length, hasMore: false });
         }
-        if (search) {
-          const s = `%${search}%`;
-          if (onlineOnly) {
-            rows = await db`SELECT * FROM devices WHERE last_online >= ${onlineCut} AND (device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s}) ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
-            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE last_online >= ${onlineCut} AND (device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s})`;
-          } else {
-            rows = await db`SELECT * FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s} ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
-            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s}`;
-          }
+
+        // Build row query + count query, run in parallel
+        let rowQ: Promise<unknown[]>, cntQ: Promise<unknown[]>;
+        const s = search ? `%${search}%` : null;
+
+        if (s && onlineOnly) {
+          rowQ = db`SELECT * FROM devices WHERE last_online >= ${onlineCut} AND (device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s}) ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
+          cntQ = db`SELECT COUNT(*)::bigint AS c FROM devices WHERE last_online >= ${onlineCut} AND (device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s})`;
+        } else if (s) {
+          rowQ = db`SELECT * FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s} ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+          cntQ = db`SELECT COUNT(*)::bigint AS c FROM devices WHERE device_id ILIKE ${s} OR user_id ILIKE ${s} OR name ILIKE ${s}`;
+        } else if (appId && onlineOnly) {
+          rowQ = db`SELECT * FROM devices WHERE app_id = ${appId} AND last_online >= ${onlineCut} ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
+          cntQ = db`SELECT COUNT(*)::bigint AS c FROM devices WHERE app_id = ${appId} AND last_online >= ${onlineCut}`;
         } else if (appId) {
-          if (onlineOnly) {
-            rows = await db`SELECT * FROM devices WHERE app_id = ${appId} AND last_online >= ${onlineCut} ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
-            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE app_id = ${appId} AND last_online >= ${onlineCut}`;
-          } else {
-            rows = await db`SELECT * FROM devices WHERE app_id = ${appId} ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
-            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE app_id = ${appId}`;
-          }
+          rowQ = db`SELECT * FROM devices WHERE app_id = ${appId} ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+          cntQ = db`SELECT COUNT(*)::bigint AS c FROM devices WHERE app_id = ${appId}`;
+        } else if (onlineOnly) {
+          rowQ = db`SELECT * FROM devices WHERE last_online >= ${onlineCut} ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
+          cntQ = db`SELECT COUNT(*)::bigint AS c FROM devices WHERE last_online >= ${onlineCut}`;
         } else {
-          if (onlineOnly) {
-            rows = await db`SELECT * FROM devices WHERE last_online >= ${onlineCut} ORDER BY last_online DESC NULLS LAST LIMIT ${limitN} OFFSET ${offset}`;
-            countRows = await db`SELECT COUNT(*)::int AS c FROM devices WHERE last_online >= ${onlineCut}`;
-          } else {
-            rows = await db`SELECT * FROM devices ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
-            countRows = await db`SELECT COUNT(*)::int AS c FROM devices`;
-          }
+          rowQ = db`SELECT * FROM devices ORDER BY installed_at DESC LIMIT ${limitN} OFFSET ${offset}`;
+          // Fast estimate for full-table count (avoids slow COUNT(*) on 100k+ rows)
+          cntQ = db`SELECT reltuples::bigint AS c FROM pg_class WHERE relname = 'devices'`;
         }
-        const total = (countRows as any[])[0]?.c ?? 0;
+
+        const [rows, countRows] = await Promise.all([rowQ, cntQ]);
+        const total = Number((countRows as any[])[0]?.c ?? 0);
         const data = (rows as any[]).map(r => ({ ...mapDevice(r), hasFcm: !!r.fcm_token }));
         return json({ data, total, hasMore: offset + data.length < total });
       }
