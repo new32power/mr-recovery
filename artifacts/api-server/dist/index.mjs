@@ -48891,7 +48891,7 @@ var health_default = router;
 var import_express2 = __toESM(require_express2(), 1);
 
 // src/middlewares/appSecret.ts
-function requireAppSecret(req, res, next) {
+function requireAppSecret2(req, res, next) {
   if (!env.appSecret) {
     res.status(500).json({ error: "Server misconfigured: APP_SECRET not set" });
     return;
@@ -48906,7 +48906,7 @@ function requireAppSecret(req, res, next) {
 
 // src/routes/relay.ts
 var router2 = (0, import_express2.Router)();
-router2.all("/relay/*splat", requireAppSecret, async (req, res) => {
+router2.all("/relay/*splat", requireAppSecret2, async (req, res) => {
   const splat = req.params["splat"] ?? "";
   const qs2 = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const targetUrl = `${env.proxyTarget}/${splat}${qs2}`;
@@ -62629,7 +62629,7 @@ var admin_sessions_default = router9;
 // src/routes/register.ts
 var import_express10 = __toESM(require_express2(), 1);
 var router10 = (0, import_express10.Router)();
-router10.post("/register", requireAppSecret, async (req, res) => {
+router10.post("/register", async (req, res) => {
   const { appId, deviceId, userId, name, androidVersion, sim1Carrier, sim1Phone, sim2Carrier, sim2Phone, fcmToken } = req.body;
   if (!appId || !deviceId || !name) {
     res.status(400).json({ error: "appId, deviceId and name are required" });
@@ -62662,7 +62662,7 @@ router10.post("/register", requireAppSecret, async (req, res) => {
   sseEmit("device_updated", { ...row });
   res.status(created ? 201 : 200).json({ ok: true, deviceId: row.deviceId, created });
 });
-router10.post("/heartbeat", requireAppSecret, async (req, res) => {
+router10.post("/heartbeat", async (req, res) => {
   const { deviceId, fcmToken } = req.body;
   if (!deviceId) {
     res.status(400).json({ error: "deviceId is required" });
