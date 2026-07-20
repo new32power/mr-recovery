@@ -1,20 +1,23 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 import * as schema from "./schema";
 
-neonConfig.webSocketConstructor = ws;
-
 const connectionString = process.env.NEON_DATABASE_URL;
 if (!connectionString) {
   throw new Error("NEON_DATABASE_URL environment variable is required");
 }
 
-export const pool = new Pool({ connectionString });
+export const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
 export const db = drizzle(pool, { schema });
 
 export const DEFAULT_APP_ID = "SKY-APP-2026-X9F3";
