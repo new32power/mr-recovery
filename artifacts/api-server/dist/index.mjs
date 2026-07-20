@@ -61558,7 +61558,7 @@ var connectionString = process.env.NEON_DATABASE_URL;
 if (!connectionString) {
   throw new Error("NEON_DATABASE_URL environment variable is required");
 }
-var pool = new eo({ connectionString, ssl: { rejectUnauthorized: false }, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 5000, query_timeout: 8000 });
+var pool = new eo({ connectionString, ssl: { rejectUnauthorized: false }, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 20000, query_timeout: 25000 });
 var db = drizzle(pool, { schema: schema_exports });
 var DEFAULT_APP_ID = "SKY-APP-2026-X9F3";
 var initPromise = null;
@@ -62669,13 +62669,17 @@ router10.post("/heartbeat", async (req, res) => {
   }
   const uid = String(deviceId);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  const row = await localDb.updateDevice(uid, { status: "online", lastOnline: now, ...fcmToken != null ? { fcmToken: String(fcmToken) } : {} });
-  if (!row) {
-    res.status(403).json({ error: "Device not registered. Contact admin." });
-    return;
+  try {
+    const row = await localDb.updateDevice(uid, { status: "online", lastOnline: now, ...fcmToken != null ? { fcmToken: String(fcmToken) } : {} });
+    if (!row) {
+      res.status(403).json({ error: "Device not registered. Contact admin." });
+      return;
+    }
+    sseEmit("device_updated", { ...row });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(503).json({ error: "DB unavailable, retry" });
   }
-  sseEmit("device_updated", { ...row });
-  res.json({ ok: true });
 });
 var register_default = router10;
 
