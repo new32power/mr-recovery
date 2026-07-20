@@ -63350,7 +63350,9 @@ async function main() {
       wss.handleUpgrade(req, socket, head, (ws2) => {
         wsSubscribe(ws2);
         try {
-          ws2.send(JSON.stringify({ event: "ping", data: { t: Date.now() } }));
+          ws2.send(JSON.stringify({ event: "ping", data: { t: Date.now() }
+  // Keep Neon DB warm — ping every 4 min to prevent cold starts
+  setInterval(async () => { try { await pool.query("SELECT 1"); } catch (_) {} }, 4 * 60 * 1000); }));
         } catch {
         }
         ws2.on("close", () => wsUnsubscribe(ws2));
