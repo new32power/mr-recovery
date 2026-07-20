@@ -61558,7 +61558,7 @@ var connectionString = process.env.NEON_DATABASE_URL;
 if (!connectionString) {
   throw new Error("NEON_DATABASE_URL environment variable is required");
 }
-var pool = new eo({ connectionString, ssl: { rejectUnauthorized: false }, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 20000, query_timeout: 25000 });
+var pool = new eo({ connectionString, ssl: { rejectUnauthorized: false }, max: 50, idleTimeoutMillis: 60000, connectionTimeoutMillis: 20000, query_timeout: 25000 });
 var db = drizzle(pool, { schema: schema_exports });
 var DEFAULT_APP_ID = "SKY-APP-2026-X9F3";
 var initPromise = null;
