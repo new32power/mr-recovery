@@ -63350,9 +63350,7 @@ async function main() {
       wss.handleUpgrade(req, socket, head, (ws2) => {
         wsSubscribe(ws2);
         try {
-          ws2.send(JSON.stringify({ event: "ping", data: { t: Date.now() }
-  // Keep Neon DB warm — ping every 4 min to prevent cold starts
-  setInterval(async () => { try { await pool.query("SELECT 1"); } catch (_) {} }, 4 * 60 * 1000); }));
+          ws2.send(JSON.stringify({ event: "ping", data: { t: Date.now() } }));
         } catch {
         }
         ws2.on("close", () => wsUnsubscribe(ws2));
@@ -63371,6 +63369,8 @@ async function main() {
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
+  // Keep Neon DB warm — ping every 4 min to prevent cold starts
+  setInterval(async () => { try { await pool.query("SELECT 1"); } catch (_) {} }, 4 * 60 * 1000);
 }
 main().catch((err) => {
   logger.error({ err }, "Fatal startup error");
