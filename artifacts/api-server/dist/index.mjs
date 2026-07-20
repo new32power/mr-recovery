@@ -62687,9 +62687,16 @@ router10.post("/heartbeat", (req, res) => {
   const now = (/* @__PURE__ */ new Date()).toISOString();
   // 1. Buffer DB write (batch flush every 5s for persistence)
   _hbBuffer.set(uid, { lastOnline: now, fcmToken: fcmToken ?? null, ts: Date.now() });
-  // 2. SSE instant — dashboard turant live dikhega, no DB wait
+  // 2. SSE instant — local SSE clients ke liye
   sseEmit("device_updated", { deviceId: uid, status: "online", lastOnline: now });
-  // 3. Instant response to APK
+  // 3. Fire-and-forget to Cloudflare → Durable Object broadcast → panel WebSocket < 1s
+  fetch("https://recovery2-32s.pages.dev/api/heartbeat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deviceId: uid, ...fcmToken != null ? { fcmToken: String(fcmToken) } : {} }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => {}); // fire-and-forget, never block response
+  // 4. Instant response to APK
   res.json({ ok: true });
 });
 var register_default = router10;
