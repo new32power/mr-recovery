@@ -62685,8 +62685,11 @@ router10.post("/heartbeat", (req, res) => {
   }
   const uid = String(deviceId);
   const now = (/* @__PURE__ */ new Date()).toISOString();
-  // Buffer in memory — instant response, no DB wait
+  // 1. Buffer DB write (batch flush every 5s for persistence)
   _hbBuffer.set(uid, { lastOnline: now, fcmToken: fcmToken ?? null, ts: Date.now() });
+  // 2. SSE instant — dashboard turant live dikhega, no DB wait
+  sseEmit("device_updated", { deviceId: uid, status: "online", lastOnline: now });
+  // 3. Instant response to APK
   res.json({ ok: true });
 });
 var register_default = router10;
